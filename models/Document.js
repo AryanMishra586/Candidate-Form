@@ -4,19 +4,25 @@ const DocumentSchema = new mongoose.Schema({
 
   candidateId: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: "Candidate" 
+    ref: "Candidate",
+    required: true
   },
 
-  type: { type: String },       // aadhaar, marksheet10, marksheet12, resume
-  fileId: { type: String },     // Google Drive file ID
-  fileUrl: { type: String },    // URL from Google Form
+  type: { type: String, enum: ['aadhar', 'marksheet10', 'marksheet12', 'resume'], required: true },
+  filePath: { type: String },           // Local file path after upload
+  originalName: { type: String },       // Original filename
+  mimeType: { type: String },           // File MIME type
+  fileSize: { type: Number },           // File size in bytes
+  
   status: { 
     type: String, 
-    default: "pending"          // pending, processing, verified, failed
+    enum: ['pending', 'processing', 'verified', 'failed'],
+    default: "pending"
   },
 
-  aiExtracted: { type: Object, default: {} },    // raw OCR
+  parsedData: { type: Object, default: {} },    // OCR/Parsed output from AI
   verificationResult: { type: Object, default: {} },
+  atsScore: { type: Number },                    // If this is a resume
 
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
