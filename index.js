@@ -14,8 +14,8 @@ app.use(express.json());
 connectDB();
 
 // Routes
-const webhookRoutes = require('./routes/webhookRoutes');
-app.use('/api/webhook', webhookRoutes);
+const candidateRoutes = require('./routes/candidateRoutes');
+app.use('/api/candidates', candidateRoutes);
 
 // Health Route
 app.get('/', (req, res) => {
