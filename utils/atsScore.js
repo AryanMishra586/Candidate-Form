@@ -1,7 +1,7 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const axios = require('axios');
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
+const API_BASE_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent';
 
 /**
  * Generate ATS score for a resume
@@ -44,8 +44,20 @@ Provide a detailed ATS analysis in JSON format with:
   "recommendations": [<array of specific improvements>]
 }`;
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const response = await axios.post(
+      `${API_BASE_URL}?key=${GEMINI_API_KEY}`,
+      {
+        contents: [{
+          parts: [{ text: prompt }]
+        }]
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000
+      }
+    );
+
+    const responseText = response.data.candidates[0].content.parts[0].text;
     
     // Parse JSON response
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
@@ -93,8 +105,20 @@ Provide analysis in JSON format with:
   "recommendations": [<suggestions for candidate to improve fit>]
 }`;
 
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const response = await axios.post(
+      `${API_BASE_URL}?key=${GEMINI_API_KEY}`,
+      {
+        contents: [{
+          parts: [{ text: prompt }]
+        }]
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000
+      }
+    );
+
+    const responseText = response.data.candidates[0].content.parts[0].text;
     
     // Parse JSON response
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);

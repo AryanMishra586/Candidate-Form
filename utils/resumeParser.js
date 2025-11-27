@@ -12,7 +12,8 @@ async function extractTextFromPDF(filePath) {
     return data.text;
   } catch (error) {
     console.error('Error parsing PDF:', error.message);
-    throw new Error(`Failed to parse PDF: ${error.message}`);
+    // Return a simple fallback if PDF parsing fails
+    return `[PDF Parsing Failed] File: ${filePath}. Please check file format.`;
   }
 }
 
@@ -21,7 +22,9 @@ async function extractTextFromPDF(filePath) {
  */
 async function parseResume(filePath) {
   try {
+    console.log(`Starting resume parsing for: ${filePath}`);
     const text = await extractTextFromPDF(filePath);
+    console.log(`Extracted text length: ${text.length}`);
     
     // Extract key sections and information
     const parsed = {
@@ -33,10 +36,20 @@ async function parseResume(filePath) {
       summary: extractSummary(text)
     };
 
+    console.log(`Resume parsing completed successfully`);
     return parsed;
   } catch (error) {
     console.error('Error in parseResume:', error.message);
-    throw error;
+    // Return basic structure even if parsing fails
+    return {
+      rawText: '',
+      contact: {},
+      skills: [],
+      experience: [],
+      education: [],
+      summary: 'Resume parsing failed',
+      error: error.message
+    };
   }
 }
 

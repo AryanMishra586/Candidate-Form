@@ -23,18 +23,6 @@ router.post("/submit", upload.fields([
 ]), submitForm);
 
 /**
- * GET /api/candidates
- * Get all candidates (for admin dashboard)
- */
-router.get("/", getAllCandidates);
-
-/**
- * GET /api/candidates/:id
- * Get specific candidate with their documents and verification results
- */
-router.get("/:id", getCandidateById);
-
-/**
  * POST /api/candidates/:id/verify
  * Trigger AI verification for a specific candidate
  * - Parse resume and generate ATS score
@@ -49,5 +37,17 @@ router.post("/:id/verify", verifyCandidateDocuments);
  * Body: { status: 'pending' | 'verified' | 'failed' }
  */
 router.patch("/:id/status", updateCandidateStatus);
+
+/**
+ * GET /api/candidates
+ * Get all candidates (for admin dashboard)
+ */
+router.get("/", getAllCandidates);
+
+/**
+ * GET /api/candidates/:id
+ * Get specific candidate with their documents and verification results
+ */
+router.get("/:id", getCandidateById);
 
 module.exports = router;

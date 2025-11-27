@@ -135,21 +135,37 @@ exports.verifyCandidateDocuments = async (req, res) => {
 
     for (const document of candidate.documents) {
       try {
+        console.log(`Processing document: ${document.type}, filePath: ${document.filePath}`);
+        
         if (document.type === 'resume') {
           // Parse resume
+          console.log('Parsing resume...');
           resumeParsed = await parseResume(document.filePath);
+          console.log('Resume parsed successfully');
+          
           candidate.extractedData.resume = resumeParsed;
 
           // Generate ATS score
-          atsScoreData = await generateATSScore(resumeParsed);
-          candidate.atsScore = atsScoreData.atsScore;
+          try {
+            console.log('Generating ATS score...');
+            atsScoreData = await generateATSScore(resumeParsed);
+            console.log('ATS score generated successfully:', atsScoreData.atsScore);
+            candidate.atsScore = atsScoreData.atsScore;
+            document.atsScore = atsScoreData.atsScore;
+          } catch (atsError) {
+            console.error('ATS score generation error:', atsError.message);
+            atsScoreData = { atsScore: null, scoreBreakdown: {}, error: atsError.message };
+            candidate.atsScore = null;
+            document.atsScore = null;
+          }
 
           document.parsedData = resumeParsed;
-          document.atsScore = atsScoreData.atsScore;
           document.status = 'verified';
         } else {
           // Verify other documents (aadhar, marksheet10, marksheet12)
+          console.log(`Verifying ${document.type}...`);
           documentsVerified[document.type] = await verifyDocument(document);
+          console.log(`${document.type} verified successfully`);
           
           if (document.type === 'aadhar') {
             candidate.extractedData.aadhar = documentsVerified[document.type].extractedInfo;
