@@ -1,8 +1,7 @@
-const { OpenAI } = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 /**
  * Generate ATS score for a resume
@@ -45,20 +44,10 @@ Provide a detailed ATS analysis in JSON format with:
   "recommendations": [<array of specific improvements>]
 }`;
 
-    const message = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 1000
-    });
-
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    
     // Parse JSON response
-    const responseText = message.choices[0].message.content;
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     
     if (jsonMatch) {
@@ -104,19 +93,10 @@ Provide analysis in JSON format with:
   "recommendations": [<suggestions for candidate to improve fit>]
 }`;
 
-    const message = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 1000
-    });
-
-    const responseText = message.choices[0].message.content;
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    
+    // Parse JSON response
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     
     if (jsonMatch) {

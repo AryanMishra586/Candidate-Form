@@ -1,10 +1,9 @@
 const Tesseract = require('tesseract.js');
-const { OpenAI } = require('openai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 /**
  * Extract text from image using OCR (Tesseract)
@@ -108,7 +107,7 @@ async function verifyMarksheet(filePath, marksheetType) {
 }
 
 /**
- * Use OpenAI to verify and extract data
+ * Use Google Gemini to verify and extract data
  */
 async function verifyWithAI(docType, ocrText) {
   try {
@@ -147,20 +146,10 @@ ${ocrText}
 Respond in JSON format with keys: name, rollNumber, percentage, board, year, subjects (object with subject names as keys and marks as values)`;
     }
 
-    const message = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.3,
-      max_tokens: 500
-    });
-
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    
     // Parse JSON response
-    const responseText = message.choices[0].message.content;
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     
     if (jsonMatch) {
