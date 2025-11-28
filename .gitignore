@@ -5,3 +5,8 @@ node_modules/
 .env.production
 .DS_Store
 GEMINI_SETUP.md
+BACKEND_TESTING_GUIDE.md
+server.log
+*.log
+*.traineddata
+uploads/
