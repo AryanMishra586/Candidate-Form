@@ -1,5 +1,6 @@
 const Candidate = require("../models/Candidate");
 const Document = require("../models/Document");
+const { uploadFileToGoogle } = require("../utils/driveUpload");
 
 /**
  * Submit form with candidate information and files
@@ -38,7 +39,7 @@ exports.submitForm = async (req, res) => {
     await candidate.save();
     console.log('[SUBMIT] Candidate saved with ID:', candidate._id);
 
-    // Save documents
+    // Save documents with Google Drive upload
     const documentIds = [];
 
     for (const [fieldName, fileArray] of Object.entries(files)) {
@@ -50,13 +51,21 @@ exports.submitForm = async (req, res) => {
         path: file.path
       });
 
+      // Upload to Google Drive (with fallback to local)
+      const uploadResult = await uploadFileToGoogle(file, candidate._id.toString());
+      
+      console.log(`[SUBMIT] Upload result:`, uploadResult.storageType);
+
       const document = new Document({
         candidateId: candidate._id,
         type: fieldName, // resume, aadhar, marksheet10, marksheet12
-        filePath: file.path,
+        filePath: uploadResult.filePath,
         originalName: file.originalname,
         mimeType: file.mimetype,
         fileSize: file.size,
+        driveFileId: uploadResult.fileId,
+        driveLink: uploadResult.driveLink,
+        storageType: uploadResult.storageType,
         status: 'pending'
       });
 
@@ -182,11 +191,19 @@ exports.verifyCandidateDocuments = async (req, res) => {
     // STEP 2: GENERATE ATS SCORE (NON-CRITICAL)
     if (resumeExtractionSucceeded && resumeParsed) {
       try {
-        console.log(`[VERIFY] Generating ATS score...`);
-        const { generateATSScore } = require("../utils/atsScore");
-        atsScoreData = await generateATSScore(resumeParsed);
+        console.log(`[VERIFY] Generating ATS score with Gemini API...`);
+        const { generateATSScoreWithGemini } = require("../utils/geminiAtsScore");
+        atsScoreData = await generateATSScoreWithGemini(resumeParsed);
         candidate.atsScore = atsScoreData.atsScore;
-        console.log(`[VERIFY] ATS score generated: ${atsScoreData.atsScore}`);
+        candidate.atsScoreDetails = {
+          source: atsScoreData.source,
+          fallbackUsed: atsScoreData.fallbackUsed,
+          reasoning: atsScoreData.reasoning,
+          strengths: atsScoreData.strengths,
+          improvements: atsScoreData.improvements,
+          keywordMatches: atsScoreData.keywordMatches
+        };
+        console.log(`[VERIFY] ATS score generated: ${atsScoreData.atsScore} (Source: ${atsScoreData.source})`);
       } catch (atsError) {
         console.warn(`[VERIFY] ATS score generation failed (non-critical):`, atsError.message);
         atsScoreData = null;
@@ -199,12 +216,25 @@ exports.verifyCandidateDocuments = async (req, res) => {
     for (const document of otherDocs) {
       try {
         console.log(`[VERIFY] Attempting to verify ${document.type}...`);
-        // DISABLED: Gemini API calls - causing crashes
-        // const { verifyAadhar, verifyMarksheet } = require("../utils/aiVerification");
         
-        // For now, just mark as verified without calling Gemini
-        document.status = 'verified';
-        console.log(`[VERIFY] ${document.type} marked as verified (API call skipped)`);
+        // ENABLED: Gemini API calls - now with proper error handling
+        const { verifyAadhar, verifyMarksheet } = require("../utils/aiVerification");
+        
+        let verificationResult = null;
+        if (document.type === 'aadhar') {
+          verificationResult = await verifyAadhar(document.filePath);
+        } else if (document.type === 'marksheet10' || document.type === 'marksheet12') {
+          verificationResult = await verifyMarksheet(document.filePath, document.type);
+        }
+        
+        if (verificationResult) {
+          document.status = 'verified';
+          document.parsedData = verificationResult.extractedInfo;
+          console.log(`[VERIFY] ${document.type} verified via Gemini API`);
+        } else {
+          document.status = 'failed';
+          console.log(`[VERIFY] ${document.type} verification returned no result`);
+        }
       } catch (docError) {
         console.warn(`[VERIFY] ${document.type} verification failed (non-critical):`, docError.message);
         document.status = 'failed';

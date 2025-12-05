@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect } from "react";
+import { API_BASE_URL } from "../config";
 
 export default function ResultsDisplay({ candidateId, onReset }) {
   const [candidate, setCandidateData] = useState(null);
@@ -17,7 +18,7 @@ export default function ResultsDisplay({ candidateId, onReset }) {
       // First, trigger the verification endpoint to extract data
       console.log("🔄 Calling verify endpoint for candidateId:", candidateId);
       const verifyResponse = await fetch(
-        `http://localhost:3000/api/candidates/${candidateId}/verify`,
+        `${API_BASE_URL}/api/candidates/${candidateId}/verify`,
         { method: "POST" }
       );
 
@@ -33,7 +34,7 @@ export default function ResultsDisplay({ candidateId, onReset }) {
 
       // Now fetch the candidate data
       console.log("📥 Fetching candidate data...");
-      const response = await fetch(`http://localhost:3000/api/candidates/${candidateId}`);
+      const response = await fetch(`${API_BASE_URL}/api/candidates/${candidateId}`);
       if (!response.ok) {
         throw new Error("Failed to fetch candidate data");
       }
@@ -177,10 +178,10 @@ export default function ResultsDisplay({ candidateId, onReset }) {
           {resumeData.contact && Object.keys(resumeData.contact).length > 0 && (
             <div style={{ marginBottom: "20px" }}>
               <h3 style={{ color: "#667eea", fontSize: "16px", marginBottom: "12px" }}>📞 Contact Information</h3>
-              <div style={{ backgroundColor: "#f8f9fa", padding: "15px", borderRadius: "8px" }}>
-                {resumeData.contact.email && <p style={{ margin: "5px 0" }}><strong>Email:</strong> {resumeData.contact.email}</p>}
-                {resumeData.contact.phone && <p style={{ margin: "5px 0" }}><strong>Phone:</strong> {resumeData.contact.phone}</p>}
-                {resumeData.contact.linkedin && <p style={{ margin: "5px 0" }}><strong>LinkedIn:</strong> {resumeData.contact.linkedin}</p>}
+              <div style={{ backgroundColor: "#e3f2fd", padding: "15px", borderRadius: "8px", border: "2px solid #2196f3" }}>
+                {resumeData.contact.email && <p style={{ margin: "5px 0", color: "#1565c0" }}><strong>📧 Email:</strong> {resumeData.contact.email}</p>}
+                {resumeData.contact.phone && <p style={{ margin: "5px 0", color: "#1565c0" }}><strong>📱 Phone:</strong> {resumeData.contact.phone}</p>}
+                {resumeData.contact.linkedin && <p style={{ margin: "5px 0", color: "#1565c0" }}><strong>🔗 LinkedIn:</strong> {resumeData.contact.linkedin}</p>}
               </div>
             </div>
           )}
@@ -360,6 +361,66 @@ export default function ResultsDisplay({ candidateId, onReset }) {
               Score Progress: {candidate.atsScore}% of 100%
             </p>
           </div>
+
+          {/* Gemini ATS Details */}
+          {candidate.verificationDetails?.atsDetails && (
+            <div style={{
+              backgroundColor: "#f0f8ff",
+              padding: "15px",
+              borderRadius: "8px",
+              border: "1px solid #64b5f6",
+              marginTop: "20px"
+            }}>
+              <p style={{ margin: "0 0 10px 0", fontSize: "13px", fontWeight: "600", color: "#1976d2" }}>
+                📊 {candidate.verificationDetails.atsDetails.source === "gemini-ai" ? "🤖 AI Analysis (Gemini)" : "⚙️ Hybrid Calculation"}
+              </p>
+              
+              {candidate.verificationDetails.atsDetails.reasoning && (
+                <div style={{ marginBottom: "12px" }}>
+                  <p style={{ margin: "0 0 5px 0", fontSize: "12px", fontWeight: "600", color: "#333" }}>
+                    💡 Analysis:
+                  </p>
+                  <p style={{ margin: 0, fontSize: "12px", color: "#555", lineHeight: "1.5" }}>
+                    {candidate.verificationDetails.atsDetails.reasoning}
+                  </p>
+                </div>
+              )}
+              
+              {candidate.verificationDetails.atsDetails.strengths && candidate.verificationDetails.atsDetails.strengths.length > 0 && (
+                <div style={{ marginBottom: "12px" }}>
+                  <p style={{ margin: "0 0 5px 0", fontSize: "12px", fontWeight: "600", color: "#333" }}>
+                    ✅ Strengths:
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#555" }}>
+                    {candidate.verificationDetails.atsDetails.strengths.map((strength, idx) => (
+                      <li key={idx} style={{ marginBottom: "3px" }}>{strength}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {candidate.verificationDetails.atsDetails.improvements && candidate.verificationDetails.atsDetails.improvements.length > 0 && (
+                <div style={{ marginBottom: "12px" }}>
+                  <p style={{ margin: "0 0 5px 0", fontSize: "12px", fontWeight: "600", color: "#333" }}>
+                    📈 Areas for Improvement:
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "12px", color: "#555" }}>
+                    {candidate.verificationDetails.atsDetails.improvements.map((improvement, idx) => (
+                      <li key={idx} style={{ marginBottom: "3px" }}>{improvement}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {candidate.verificationDetails.atsDetails.keywordMatches && (
+                <p style={{ margin: "10px 0 0 0", fontSize: "11px", color: "#666", fontStyle: "italic" }}>
+                  🔑 Key Terms Found: {Array.isArray(candidate.verificationDetails.atsDetails.keywordMatches) 
+                    ? candidate.verificationDetails.atsDetails.keywordMatches.join(", ") 
+                    : candidate.verificationDetails.atsDetails.keywordMatches}
+                </p>
+              )}
+            </div>
+          )}
         </section>
       )}
 
@@ -399,30 +460,72 @@ export default function ResultsDisplay({ candidateId, onReset }) {
 
                 {/* Show extracted data if available */}
                 {hasData && (
-                  <div style={{ backgroundColor: "rgba(255,255,255,0.7)", padding: "15px", borderRadius: "6px", marginTop: "12px" }}>
-                    <h5 style={{ marginTop: 0, marginBottom: "10px", color: "#667eea" }}>Extracted Information:</h5>
+                  <div style={{ backgroundColor: "#e8f5e9", padding: "15px", borderRadius: "6px", marginTop: "12px", border: "1px solid #4caf50" }}>
+                    <h5 style={{ marginTop: 0, marginBottom: "10px", color: "#2e7d32", fontWeight: "600" }}>📋 Extracted Information:</h5>
                     
                     {/* Aadhar Data */}
                     {doc.type === "aadhar" && (
                       <div>
-                        {parsedData.aadharNumber && <p style={{ margin: "5px 0" }}><strong>Aadhar Number:</strong> {parsedData.aadharNumber}</p>}
-                        {parsedData.name && <p style={{ margin: "5px 0" }}><strong>Name:</strong> {parsedData.name}</p>}
-                        {parsedData.dob && <p style={{ margin: "5px 0" }}><strong>Date of Birth:</strong> {parsedData.dob}</p>}
-                        {parsedData.address && <p style={{ margin: "5px 0" }}><strong>Address:</strong> {parsedData.address}</p>}
+                        {parsedData.aadharNumber ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>🔢 Aadhar Number:</strong> {parsedData.aadharNumber}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>🔢 Aadhar Number:</strong> Not extracted</p>
+                        )}
+                        {parsedData.name ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>👤 Name:</strong> {parsedData.name}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>👤 Name:</strong> Not extracted</p>
+                        )}
+                        {parsedData.dob ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>📅 Date of Birth:</strong> {parsedData.dob}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>📅 Date of Birth:</strong> Not extracted</p>
+                        )}
+                        {parsedData.address ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>📍 Address:</strong> {parsedData.address}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>📍 Address:</strong> Not extracted</p>
+                        )}
                       </div>
                     )}
 
                     {/* Marksheet Data */}
                     {(doc.type === "marksheet10" || doc.type === "marksheet12") && (
                       <div>
-                        {parsedData.rollNumber && <p style={{ margin: "5px 0" }}><strong>Roll Number:</strong> {parsedData.rollNumber}</p>}
-                        {parsedData.name && <p style={{ margin: "5px 0" }}><strong>Name:</strong> {parsedData.name}</p>}
-                        {parsedData.percentage && <p style={{ margin: "5px 0" }}><strong>Percentage:</strong> {parsedData.percentage}%</p>}
-                        {parsedData.board && <p style={{ margin: "5px 0" }}><strong>Board:</strong> {parsedData.board}</p>}
-                        {parsedData.totalMarks && <p style={{ margin: "5px 0" }}><strong>Total Marks:</strong> {parsedData.totalMarks}</p>}
-                        {parsedData.obtainedMarks && <p style={{ margin: "5px 0" }}><strong>Obtained Marks:</strong> {parsedData.obtainedMarks}</p>}
-                        {parsedData.subjects && parsedData.subjects.length > 0 && (
-                          <p style={{ margin: "5px 0" }}><strong>Subjects:</strong> {parsedData.subjects.join(", ")}</p>
+                        {parsedData.rollNumber ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>🎓 Roll Number:</strong> {parsedData.rollNumber}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>🎓 Roll Number:</strong> Not extracted</p>
+                        )}
+                        {parsedData.name ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>👤 Name:</strong> {parsedData.name}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>👤 Name:</strong> Not extracted</p>
+                        )}
+                        {parsedData.percentage ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>📊 Percentage:</strong> {parsedData.percentage}%</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>📊 Percentage:</strong> Not extracted</p>
+                        )}
+                        {parsedData.board ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>🏢 Board:</strong> {parsedData.board}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>🏢 Board:</strong> Not extracted</p>
+                        )}
+                        {parsedData.totalMarks ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>📈 Total Marks:</strong> {parsedData.totalMarks}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>📈 Total Marks:</strong> Not extracted</p>
+                        )}
+                        {parsedData.obtainedMarks ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>✅ Obtained Marks:</strong> {parsedData.obtainedMarks}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>✅ Obtained Marks:</strong> Not extracted</p>
+                        )}
+                        {parsedData.subjects && parsedData.subjects.length > 0 ? (
+                          <p style={{ margin: "5px 0", color: "#333" }}><strong>📚 Subjects:</strong> {parsedData.subjects.join(", ")}</p>
+                        ) : (
+                          <p style={{ margin: "5px 0", color: "#999" }}><strong>📚 Subjects:</strong> Not extracted</p>
                         )}
                       </div>
                     )}

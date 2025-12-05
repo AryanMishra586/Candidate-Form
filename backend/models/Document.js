@@ -14,6 +14,11 @@ const DocumentSchema = new mongoose.Schema({
   mimeType: { type: String },           // File MIME type
   fileSize: { type: Number },           // File size in bytes
   
+  // Google Drive storage (optional)
+  driveFileId: { type: String },        // Google Drive file ID
+  driveLink: { type: String },          // Google Drive shareable link
+  storageType: { type: String, enum: ['local', 'google-drive'], default: 'local' }, // Where file is stored
+  
   status: { 
     type: String, 
     enum: ['pending', 'processing', 'verified', 'failed'],

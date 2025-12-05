@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function CandidateForm({ onSubmitSuccess }) {
   const [formData, setFormData] = useState({
@@ -64,7 +65,7 @@ export default function CandidateForm({ onSubmitSuccess }) {
       data.append('marksheet12', files.marksheet12);
 
       console.log('📤 Submitting form...');
-      const response = await fetch('http://localhost:3000/api/candidates/submit', {
+      const response = await fetch(`${API_BASE_URL}/api/candidates/submit`, {
         method: 'POST',
         body: data
       });
@@ -83,7 +84,7 @@ export default function CandidateForm({ onSubmitSuccess }) {
         console.log('🔄 Triggering verification process...');
         try {
           const verifyResponse = await fetch(
-            `http://localhost:3000/api/candidates/${result.candidateId}/verify`,
+            `${API_BASE_URL}/api/candidates/${result.candidateId}/verify`,
             { method: 'POST' }
           );
           console.log('✅ Verification triggered');
