@@ -239,6 +239,11 @@ exports.verifyCandidateDocuments = async (req, res) => {
         if (verificationResult) {
           document.status = 'verified';
           document.parsedData = verificationResult.extractedInfo;
+          
+          // Also store in candidate's extractedData for easy access
+          candidate.extractedData[document.type] = verificationResult.extractedInfo;
+          candidate.markModified('extractedData');
+          
           console.log(`[VERIFY] ${document.type} verified via Gemini API`);
         } else {
           document.status = 'failed';
@@ -260,7 +265,16 @@ exports.verifyCandidateDocuments = async (req, res) => {
       resumeAtsScore: atsScoreData?.atsScore || null,
       resumeSkills: resumeParsed?.skills?.length || 0,
       resumeExperience: resumeParsed?.experience?.length || 0,
-      resumeEducation: resumeParsed?.education?.length || 0
+      resumeEducation: resumeParsed?.education?.length || 0,
+      atsDetails: atsScoreData ? {
+        atsScore: atsScoreData.atsScore,
+        source: atsScoreData.source,
+        fallbackUsed: atsScoreData.fallbackUsed,
+        reasoning: atsScoreData.reasoning,
+        strengths: atsScoreData.strengths,
+        improvements: atsScoreData.improvements,
+        keywordMatches: atsScoreData.keywordMatches
+      } : null
     };
     candidate.updatedAt = new Date();
 
