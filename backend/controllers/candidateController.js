@@ -43,6 +43,12 @@ exports.submitForm = async (req, res) => {
     const documentIds = [];
 
     for (const [fieldName, fileArray] of Object.entries(files)) {
+      // Skip if no file uploaded for this field
+      if (!fileArray || fileArray.length === 0) {
+        console.log(`[SUBMIT] Skipping optional field "${fieldName}" - no file provided`);
+        continue;
+      }
+
       const file = fileArray[0]; // multer returns array
 
       console.log(`[SUBMIT] Processing file for field "${fieldName}":`, {
@@ -211,8 +217,11 @@ exports.verifyCandidateDocuments = async (req, res) => {
       }
     }
 
-    // STEP 3: ATTEMPT DOCUMENT VERIFICATION (NON-CRITICAL)
+    // STEP 3: ATTEMPT DOCUMENT VERIFICATION (NON-CRITICAL, OPTIONAL DOCUMENTS)
+    // Only processes documents that were actually uploaded
+    // Missing documents (aadhar, marksheet10, marksheet12) are treated as optional with graceful fallback
     const otherDocs = candidate.documents.filter(d => d.type !== 'resume');
+    console.log(`[VERIFY] Found ${otherDocs.length} optional documents to verify (aadhar, marksheet10, marksheet12)`);
     for (const document of otherDocs) {
       try {
         console.log(`[VERIFY] Attempting to verify ${document.type}...`);

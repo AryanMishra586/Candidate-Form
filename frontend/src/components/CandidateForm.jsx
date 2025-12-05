@@ -46,8 +46,8 @@ export default function CandidateForm({ onSubmitSuccess }) {
       return;
     }
 
-    if (!files.resume || !files.aadhar || !files.marksheet10 || !files.marksheet12) {
-      setError('All documents are required');
+    if (!files.resume) {
+      setError('Resume is required');
       return;
     }
 
@@ -59,10 +59,14 @@ export default function CandidateForm({ onSubmitSuccess }) {
       data.append('email', formData.email);
       data.append('phone', formData.phone);
       data.append('aadhar', formData.aadhar);
+      
+      // Resume is always required
       data.append('resume', files.resume);
-      data.append('aadhar', files.aadhar);
-      data.append('marksheet10', files.marksheet10);
-      data.append('marksheet12', files.marksheet12);
+      
+      // Other documents are optional - only add if uploaded
+      if (files.aadhar) data.append('aadhar', files.aadhar);
+      if (files.marksheet10) data.append('marksheet10', files.marksheet10);
+      if (files.marksheet12) data.append('marksheet12', files.marksheet12);
 
       console.log('📤 Submitting form...');
       const response = await fetch(`${API_BASE_URL}/api/candidates/submit`, {
@@ -250,7 +254,7 @@ export default function CandidateForm({ onSubmitSuccess }) {
 
               {/* Aadhar Document */}
               <div style={{ padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #e0e0e0' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333', fontSize: '14px' }}>Aadhar Document (PDF) *</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333', fontSize: '14px' }}>Aadhar Document (PDF)</label>
                 <input
                   type="file"
                   name="aadhar"
@@ -263,7 +267,7 @@ export default function CandidateForm({ onSubmitSuccess }) {
 
               {/* Marksheet 10th */}
               <div style={{ padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #e0e0e0' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333', fontSize: '14px' }}>10th Marksheet (PDF) *</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333', fontSize: '14px' }}>10th Marksheet (PDF)</label>
                 <input
                   type="file"
                   name="marksheet10"
@@ -276,7 +280,7 @@ export default function CandidateForm({ onSubmitSuccess }) {
 
               {/* Marksheet 12th */}
               <div style={{ padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '8px', border: '1px solid #e0e0e0' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333', fontSize: '14px' }}>12th Marksheet (PDF) *</label>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#333', fontSize: '14px' }}>12th Marksheet (PDF)</label>
                 <input
                   type="file"
                   name="marksheet12"
