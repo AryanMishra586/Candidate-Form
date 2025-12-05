@@ -1,12 +1,31 @@
-node_modules/
-.env
-.env.local
-.env.development
-.env.production
+# Backend
+backend/node_modules/
+backend/uploads/
+backend/.env
+backend/.env.local
+backend/.env.development
+backend/.env.production
+backend/*.log
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env.local
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+*.traineddata
+
+# Documentation (remove if needed)
 GEMINI_SETUP.md
 BACKEND_TESTING_GUIDE.md
-server.log
-*.log
-*.traineddata
-uploads/
