@@ -25,25 +25,44 @@ function extractSection(text, sectionNames) {
   let sectionStart = -1;
   let sectionEnd = lines.length;
 
+  console.log(`\n[EXTRACT_SECTION] Looking for: ${sectionNames.join(', ')}`);
+  console.log(`[EXTRACT_SECTION] Total lines: ${lines.length}`);
+
   // Find section start (case-insensitive, handle uppercase/lowercase)
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     const lineLower = line.toLowerCase();
     
-    // Log section header lines for debugging
+    // Log ALL lines that contain keywords for debugging
     if (lineLower.includes('experience') || lineLower.includes('education') || lineLower.includes('skill')) {
-      console.log(`[SECTION DETECTION] Line ${i}: "${line}"`);
+      console.log(`  [LINE ${i}] "${line}"`);
+      
+      // Show which keywords this line matches
+      for (const name of sectionNames) {
+        if (lineLower.includes(name.toLowerCase())) {
+          console.log(`    ✓ MATCHES: "${name}"`);
+        }
+      }
     }
     
     if (sectionNames.some(name => lineLower.includes(name.toLowerCase()))) {
-      console.log(`[SECTION FOUND] "${sectionNames.join('|')}" at line ${i}: "${line}"`);
+      console.log(`[✓ SECTION FOUND] at line ${i}: "${line}"`);
       sectionStart = i + 1;
       break;
     }
   }
 
   if (sectionStart === -1) {
-    console.log(`[SECTION NOT FOUND] Looking for: ${sectionNames.join(', ')}`);
+    console.log(`[✗ SECTION NOT FOUND] None of these keywords found in any line: ${sectionNames.join(', ')}`);
+    
+    // Show ALL lines containing the first character of each keyword to help debug
+    console.log(`\n[DEBUG] All lines in document:`);
+    lines.slice(0, 50).forEach((line, i) => {
+      if (line.trim().length > 0) {
+        console.log(`  Line ${i}: "${line.trim()}"`);
+      }
+    });
+    
     return null;
   }
 
@@ -73,9 +92,16 @@ function extractSection(text, sectionNames) {
  */
 async function parseResume(filePath) {
   try {
-    console.log(`Starting resume parsing for: ${filePath}`);
+    console.log(`\n========== RESUME PARSING STARTED ==========`);
+    console.log(`File: ${filePath}`);
+    
     const text = await extractTextFromPDF(filePath);
-    console.log(`Extracted text length: ${text.length}`);
+    console.log(`\n[EXTRACT] Raw text length: ${text.length} characters`);
+    
+    // Show first part of extracted text
+    console.log(`\n[EXTRACTED TEXT - FIRST 3000 CHARS]:\n`);
+    console.log(text.substring(0, 3000));
+    console.log(`\n[END PREVIEW]\n`);
     
     // Extract key sections first
     const contactSection = extractSection(text, ['contact', 'personal']);
@@ -97,9 +123,11 @@ async function parseResume(filePath) {
       achievements: extractAchievementsFromSection(achievementsSection)
     };
 
-    console.log(`Resume parsing completed successfully`);
-    console.log(`Found: ${parsed.skills.length} skills, ${parsed.experience.length} experiences, ${parsed.education.length} education entries`);
-    console.log(`Experience Section Raw:\n${experienceSection ? experienceSection.substring(0, 500) : 'NOT FOUND'}`);
+    console.log(`\n========== RESUME PARSING COMPLETED ==========`);
+    console.log(`✓ Skills: ${parsed.skills.length}`);
+    console.log(`✓ Experiences: ${parsed.experience.length}`);
+    console.log(`✓ Education: ${parsed.education.length}`);
+    console.log(`✓ Projects: ${parsed.projects.length}\n`);
     
     return parsed;
   } catch (error) {
