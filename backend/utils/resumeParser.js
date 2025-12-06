@@ -177,6 +177,8 @@ function extractExperienceFromSection(section) {
   processedText = processedText.replace(/([A-Za-z])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/g, '$1\n$2');
   processedText = processedText.replace(/([A-Za-z])(\d{1,2}\/\d{1,2}\/\d{4})/g, '$1\n$2');
   processedText = processedText.replace(/([A-Za-z])(\d{4}\s*-\s*\d{4})/g, '$1\n$2');
+  // Also handle location keywords concatenated with title
+  processedText = processedText.replace(/([a-z])(Remote|Onsite|On-site|Local|Hybrid|In-person)/g, '$1\n$2');
   
   const lines = processedText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
@@ -188,6 +190,7 @@ function extractExperienceFromSection(section) {
     period: '',
     description: []
   };
+  let expectingCompany = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -195,24 +198,30 @@ function extractExperienceFromSection(section) {
     // Check if this line is a date/period
     const isDateLine = line.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4})/i);
     
+    // Check if line is a location keyword
+    const isLocation = line.match(/^(Remote|Onsite|On-site|Local|Hybrid|In-person)$/i);
+    
     // Check if line has job keywords
     const hasJobKeyword = line.match(/(developer|engineer|manager|designer|analyst|specialist|consultant|lead|architect|senior|junior|associate|director|coordinator|officer|supervisor|admin|support|executive|president|founder|intern|trainee|lead|head|chief)/i);
     
-    // Check if it's a company name or location (proper case, no keywords, short)
-    const isProperCase = line.match(/^[A-Z][A-Za-z0-9\s&,\.\-()]+$/) && line.length < 80 && line.length > 2;
+    // Check if it's a company name (proper case, no keywords, short, not location)
+    const isCompanyName = !hasJobKeyword && !isLocation && line.match(/^[A-Z][A-Za-z0-9\s&,\.\-()]+$/) && line.length < 80 && line.length > 2;
 
     if (isDateLine) {
-      // Save period and continue collecting description lines
+      // Date line - save period
       jobData.period = line;
+      expectingCompany = false;
     } else if (hasJobKeyword && !jobData.title) {
-      // First job keyword line = job title
+      // First job keyword = job title
       jobData.title = line.substring(0, 100);
-    } else if (isProperCase && !jobData.company && jobData.title) {
-      // After title, first proper case = company
-      jobData.company = line;
-    } else if (isProperCase && !jobData.location && jobData.title && jobData.company && !isDateLine) {
-      // After company, next proper case could be location (if not a date)
+      expectingCompany = true;
+    } else if (isLocation && jobData.title) {
+      // Location keyword
       jobData.location = line;
+    } else if (isCompanyName && expectingCompany && !jobData.company) {
+      // After job title, first company name = company
+      jobData.company = line;
+      expectingCompany = false;
     } else if (hasJobKeyword && jobData.title && jobData.company && jobData.period) {
       // Hit another job title with a complete job - save current and start new
       if (jobData.title && jobData.period) {
@@ -225,8 +234,9 @@ function extractExperienceFromSection(section) {
         period: '',
         description: []
       };
-    } else if (jobData.title && line.length > 10) {
-      // Description lines (longer lines after job header)
+      expectingCompany = true;
+    } else if (jobData.title && jobData.company && line.length > 10 && !isDateLine) {
+      // Description lines (after we have title and company)
       jobData.description.push(line);
     }
   }
