@@ -334,31 +334,34 @@ function extractExperienceFromSection(section) {
       
       console.log(`[EXPERIENCE] Title: "${entry.title}" | Company: "${entry.company}" | Period: "${period}"`);
       
-      // Collect all bullet points that follow
+      // Collect all bullet points that follow until we hit another date
       i++;
       while (i < lines.length) {
         const descLine = lines[i];
         
-        // Stop if we hit another job entry (has date) or company name
-        if (descLine.match(datePattern) && !descLine.startsWith('•')) {
+        // CRITICAL: Stop IMMEDIATELY if this line has a date (next job starts)
+        if (descLine.match(datePattern)) {
+          console.log(`  [STOP] Next job at line ${i}: "${descLine}"`);
           break;
         }
         
         // Stop if we hit a section header
         if (descLine.match(/^(Experience|Education|Skills|Projects|Achievements|Awards|Certifications|Languages|Summary|Objective|Contact|References)/i) && descLine.length < 50) {
+          console.log(`  [STOP] Section header at line ${i}: "${descLine}"`);
           break;
         }
         
-        // Add bullets to description
+        // Collect everything as description (bullets and non-bullets)
         if (descLine.startsWith('•') || descLine.startsWith('-')) {
           const bulletText = descLine.replace(/^[•\-]\s*/, '').trim();
           if (bulletText.length > 0) {
             entry.description.push(bulletText);
+            console.log(`  • Bullet: ${bulletText.substring(0, 50)}...`);
           }
-          console.log(`  • ${bulletText.substring(0, 50)}...`);
-        } else if (descLine.length > 0 && !descLine.match(datePattern)) {
-          // Non-bullet continuation lines
+        } else if (descLine.length > 0) {
+          // ANY line without date is part of this job's description
           entry.description.push(descLine);
+          console.log(`  → Description: ${descLine.substring(0, 50)}...`);
         }
         
         i++;
@@ -393,62 +396,79 @@ function extractEducationFromSection(section) {
 
   const lines = section.split('\n');
   let i = 0;
+  
+  // Date pattern for education (graduation years)
+  const datePattern = /(\d{4}\s*[-–]\s*\d{4}|[A-Za-z]+\s*\d{4}|graduation\s+\d{4})/i;
 
   while (i < lines.length) {
     const trimmed = lines[i].trim();
     i++;
 
-    if (trimmed.length === 0 || trimmed.length > 150) continue;
+    if (trimmed.length === 0 || trimmed.length > 200) continue;
 
-    let entry = trimmed;
-    const looksLikeInstitution = /university|college|institute|school|academy/i.test(trimmed);
+    // Check if line has a date (degree graduation date)
+    const hasDate = datePattern.test(trimmed);
     
-    // If this looks like institution name, look ahead for degree
-    if (looksLikeInstitution && i < lines.length) {
-      const nextLine = lines[i].trim();
-      let hasDegree = false;
-      
-      // Check if next line contains a degree pattern
-      for (const pattern of degreePatterns) {
-        if (nextLine.match(new RegExp(pattern, 'i'))) {
-          entry = `${trimmed}, ${nextLine}`;
-          i++;
-          hasDegree = true;
-          break;
-        }
-      }
-      
-      // If next line also doesn't have degree, check for graduation year
-      if (!hasDegree && /\d{4}/.test(nextLine)) {
-        entry = `${trimmed}, ${nextLine}`;
-        i++;
-      }
-    } else {
-      // Check if current line itself contains a degree pattern
-      let containsDegree = false;
-      for (const pattern of degreePatterns) {
-        if (trimmed.match(new RegExp(pattern, 'i'))) {
-          containsDegree = true;
-          break;
-        }
-      }
-      
-      // If contains degree and looks like it might have institution before, look back
-      if (containsDegree && education.length > 0 && i > 1) {
-        const prevLine = lines[i - 2].trim();
-        if (/university|college|institute|school|academy/i.test(prevLine)) {
-          // Already captured as part of previous entry
-          continue;
-        }
-      }
-      
-      if (containsDegree) {
-        entry = trimmed;
+    // Check if line contains a degree pattern
+    let hasDegree = false;
+    for (const pattern of degreePatterns) {
+      if (trimmed.match(new RegExp(pattern, 'i'))) {
+        hasDegree = true;
+        break;
       }
     }
-
-    if (entry && entry.length > 5) {
-      education.push(entry);
+    
+    // Check if line looks like an institution
+    const looksLikeInstitution = /university|college|institute|school|academy/i.test(trimmed);
+    
+    // EDUCATION ENTRY is identified by: institution name OR degree OR (institution + date line)
+    // We want to capture: Institution name (previous line) + Degree line OR Degree line with dates
+    
+    if (hasDate || hasDegree || looksLikeInstitution) {
+      let entry = '';
+      
+      // If this line has institution name, look ahead for degree/dates
+      if (looksLikeInstitution) {
+        entry = trimmed; // Start with institution
+        
+        // Look ahead for degree and dates
+        if (i < lines.length) {
+          const nextLine = lines[i].trim();
+          
+          // Check if next line has degree or dates
+          let nextHasDegree = false;
+          for (const pattern of degreePatterns) {
+            if (nextLine.match(new RegExp(pattern, 'i'))) {
+              nextHasDegree = true;
+              break;
+            }
+          }
+          
+          const nextHasDate = datePattern.test(nextLine);
+          
+          // Combine institution with degree/dates
+          if (nextHasDegree || nextHasDate) {
+            entry = `${trimmed}, ${nextLine}`;
+            i++;
+          }
+        }
+      } else if (hasDegree || hasDate) {
+        // This line has degree or dates
+        entry = trimmed;
+        
+        // Look back to see if previous line was institution
+        if (i > 1) {
+          const prevLine = lines[i - 2].trim();
+          if (/university|college|institute|school|academy/i.test(prevLine)) {
+            // Prepend institution name
+            entry = `${prevLine}, ${trimmed}`;
+          }
+        }
+      }
+      
+      if (entry && entry.length > 5) {
+        education.push(entry);
+      }
     }
   }
 
