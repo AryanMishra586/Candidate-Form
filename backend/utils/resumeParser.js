@@ -62,7 +62,7 @@ async function parseResume(filePath) {
     const contactSection = extractSection(text, ['contact', 'personal']);
     const summarySection = extractSection(text, ['summary', 'objective', 'professional summary']);
     const skillsSection = extractSection(text, ['skills', 'technical skills', 'competencies']);
-    const experienceSection = extractSection(text, ['experience', 'work experience', 'employment', 'professional experience']);
+    const experienceSection = extractSection(text, ['experience', 'work experience', 'employment', 'professional experience', 'professional work']);
     const educationSection = extractSection(text, ['education', 'academic', 'qualifications']);
     const projectsSection = extractSection(text, ['projects', 'portfolio']);
     const achievementsSection = extractSection(text, ['achievements', 'awards', 'certifications']);
