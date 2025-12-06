@@ -268,8 +268,9 @@ function extractExperienceFromSection(section) {
   
   console.log(`[EXPERIENCE_PARSE] Processing ${lines.length} lines`);
   
-  // Date pattern: January-February, 2025 OR 01/2023-12/2023 OR 2023-2024 OR Feb 2025 – May 2025
-  const datePattern = /([A-Za-z]+\s*\d{4}\s*[–\-]\s*[A-Za-z]+\s*\d{4}|[A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)/i;
+  // Date pattern: matches various date formats but with word boundaries to avoid matching "current" in "concurrent"
+  // Matches: "Feb 2025 – May 2025", "2025-2026", "01/2023-12/2023", " Present", " Current"
+  const datePattern = /(\b[A-Za-z]+\s+\d{4}\s*[–\-]\s*[A-Za-z]+\s+\d{4}|\b[A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|\bPresent\b|\bCurrent\b)/i;
   
   let i = 0;
   let lastJobLineIndex = -1; // Track the line where we found a date
