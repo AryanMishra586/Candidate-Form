@@ -212,6 +212,10 @@ function extractSkillsFromSection(section) {
 
 /**
  * Extract experience from experience section
+ * Detects experiences by:
+ * 1. Numbered format (1.Job, 2.Job)
+ * 2. Date patterns (Month-Month, YYYY format)
+ * 3. Job title followed by dates
  */
 function extractExperienceFromSection(section) {
   if (!section) return [];
@@ -219,43 +223,51 @@ function extractExperienceFromSection(section) {
   const experience = [];
   const lines = section.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
+  // Date pattern: January-February, 2025 OR 01/2023-12/2023 OR 2023-2024
+  const datePattern = /([A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)/i;
+  
   let currentEntry = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const dateMatch = line.match(datePattern);
 
     // Check if this line starts with a number (1.Banter, 2.StudyNotion format)
     const numberedMatch = line.match(/^(\d+)\.(.*)/);
     
-    if (numberedMatch) {
+    // Start new entry if: numbered format OR line contains dates OR looks like a job title
+    const isNewEntry = numberedMatch || (dateMatch && line.length < 150 && !line.startsWith('•'));
+    
+    if (isNewEntry) {
       // Save previous entry if exists
       if (currentEntry && currentEntry.title) {
         experience.push(currentEntry);
       }
 
-      // Extract the rest of the line after the number
-      let restOfLine = numberedMatch[2].trim();
-      
-      // Try to find date at the end of the line (usually far right with spaces)
-      const dateAtEndMatch = restOfLine.match(/^(.+?)\s{2,}([A-Za-z]+-[A-Za-z]+,\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4})$/);
-      
-      let titleAndCompany = restOfLine;
+      let titleAndCompany = line;
       let period = '';
+
+      // Handle numbered format: "1.Banter GITHUB | LIVE SITE January-February, 2025"
+      if (numberedMatch) {
+        titleAndCompany = numberedMatch[2].trim();
+      }
+
+      // Extract date from the line
+      const match = titleAndCompany.match(/^(.+?)\s+([A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)$/i);
       
-      if (dateAtEndMatch) {
-        titleAndCompany = dateAtEndMatch[1].trim();
-        period = dateAtEndMatch[2].trim();
+      if (match) {
+        titleAndCompany = match[1].trim();
+        period = match[2].trim();
       } else {
-        // Try to find date at the end even without multiple spaces
-        const dateAtEndMatch2 = restOfLine.match(/^(.+?)\s+([A-Za-z]+-[A-Za-z]+,\s*\d{4})$/);
-        if (dateAtEndMatch2) {
-          titleAndCompany = dateAtEndMatch2[1].trim();
-          period = dateAtEndMatch2[2].trim();
+        // Try to find date with multiple spaces
+        const match2 = titleAndCompany.match(/^(.+?)\s{2,}([A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)$/i);
+        if (match2) {
+          titleAndCompany = match2[1].trim();
+          period = match2[2].trim();
         }
       }
 
-      // Split title and company/links (usually separated by space or pipes)
-      // Format: "Banter GITHUB | LIVE SITE" or "Banter"
+      // Extract title (remove links like GITHUB, LIVE SITE, pipes)
       const parts = titleAndCompany.split(/\s+GITHUB|\s+LIVE SITE|[|]/);
       const title = parts[0].trim();
 
@@ -266,15 +278,17 @@ function extractExperienceFromSection(section) {
         period: period,
         description: []
       };
-    } else if (currentEntry && line.startsWith('•')) {
+      
+      console.log(`[EXPERIENCE] Found: "${title}" | Period: "${period}"`);
+    } else if (currentEntry && (line.startsWith('•') || line.startsWith('-'))) {
       // Bullet point - add as description
-      const bulletText = line.replace(/^•\s*/, '').trim();
+      const bulletText = line.replace(/^[•\-]\s*/, '').trim();
       if (bulletText.length > 0) {
         currentEntry.description.push(bulletText);
       }
-    } else if (currentEntry && line.length > 0 && !line.startsWith('•')) {
-      // Any other non-empty line that's not a bullet - might be description
-      if (currentEntry.description.length > 0 || line.length > 20) {
+    } else if (currentEntry && line.length > 0 && !line.startsWith('•') && !line.startsWith('-')) {
+      // Any other non-empty line - might be company, location, or description
+      if (currentEntry.description.length > 0 || line.length > 15) {
         currentEntry.description.push(line);
       }
     }
@@ -285,7 +299,8 @@ function extractExperienceFromSection(section) {
     experience.push(currentEntry);
   }
 
-  return experience.slice(0, 10);
+  console.log(`[EXPERIENCE EXTRACTION] Total experiences found: ${experience.length}`);
+  return experience.slice(0, 15);
 }
 
 /**
