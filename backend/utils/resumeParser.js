@@ -27,14 +27,25 @@ function extractSection(text, sectionNames) {
 
   // Find section start (case-insensitive, handle uppercase/lowercase)
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim().toLowerCase();
-    if (sectionNames.some(name => line.includes(name.toLowerCase()))) {
+    const line = lines[i].trim();
+    const lineLower = line.toLowerCase();
+    
+    // Log section header lines for debugging
+    if (lineLower.includes('experience') || lineLower.includes('education') || lineLower.includes('skill')) {
+      console.log(`[SECTION DETECTION] Line ${i}: "${line}"`);
+    }
+    
+    if (sectionNames.some(name => lineLower.includes(name.toLowerCase()))) {
+      console.log(`[SECTION FOUND] "${sectionNames.join('|')}" at line ${i}: "${line}"`);
       sectionStart = i + 1;
       break;
     }
   }
 
-  if (sectionStart === -1) return null;
+  if (sectionStart === -1) {
+    console.log(`[SECTION NOT FOUND] Looking for: ${sectionNames.join(', ')}`);
+    return null;
+  }
 
   // Find section end (next major section header - uppercase or title case)
   const sectionHeaders = ['experience', 'education', 'skills', 'projects', 'achievements', 'certifications', 'languages', 'summary', 'objective', 'contact', 'references'];
@@ -47,11 +58,14 @@ function extractSection(text, sectionNames) {
       return lineLower.includes(header) && (line.length < 50 || line === line.toUpperCase());
     })) {
       sectionEnd = i;
+      console.log(`[SECTION END] Found next section at line ${i}: "${line}"`);
       break;
     }
   }
 
-  return lines.slice(sectionStart, sectionEnd).join('\n').trim();
+  const result = lines.slice(sectionStart, sectionEnd).join('\n').trim();
+  console.log(`[SECTION EXTRACTED] Lines ${sectionStart}-${sectionEnd}, Length: ${result.length}`);
+  return result;
 }
 
 /**
