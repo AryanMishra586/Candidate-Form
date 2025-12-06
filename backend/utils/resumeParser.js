@@ -72,18 +72,33 @@ function extractSection(text, sectionNames) {
     const line = lines[i].trim();
     const lineLower = line.toLowerCase();
     
-    // Match both uppercase headers (like "EDUCATION", "PROFESSIONAL EXPERIENCE") and lowercase
-    if (sectionHeaders.some(header => {
-      return lineLower.includes(header) && (line.length < 50 || line === line.toUpperCase());
-    })) {
-      sectionEnd = i;
-      console.log(`[SECTION END] Found next section at line ${i}: "${line}"`);
-      break;
+    // A line is a section header if:
+    // 1. It contains a section keyword
+    // 2. AND it's short (< 50 chars)
+    // 3. AND it's NOT a typical job/company line (doesn't have dates, bullet points, etc.)
+    const containsHeaderKeyword = sectionHeaders.some(header => lineLower.includes(header));
+    const isShort = line.length < 50;
+    const looksLikeContent = /\d{1,2}\/\d{4}|[A-Za-z]+\s*\d{4}|•|\-\s|@|gmail|email/i.test(line); // Has date, bullet, or contact info
+    
+    if (containsHeaderKeyword && isShort && !looksLikeContent) {
+      // Additional check: make sure the line is MOSTLY the header keyword
+      // e.g., "Education" or "EDUCATION" or "Education (Optional)" should match
+      // but "Software Development Engineer" should NOT match even if it's short
+      const headerMatch = sectionHeaders.find(h => lineLower.includes(h));
+      const headerPosition = lineLower.indexOf(headerMatch);
+      
+      // If keyword is at start or takes up most of the line, it's probably a header
+      if (headerPosition === 0 || line.length - headerPosition <= 20) {
+        sectionEnd = i;
+        console.log(`[SECTION END] Found next section at line ${i}: "${line}"`);
+        break;
+      }
     }
   }
 
   const result = lines.slice(sectionStart, sectionEnd).join('\n').trim();
   console.log(`[SECTION EXTRACTED] Lines ${sectionStart}-${sectionEnd}, Length: ${result.length}`);
+  console.log(`[SECTION CONTENT PREVIEW] ${result.substring(0, 200)}...`);
   return result;
 }
 
@@ -364,17 +379,63 @@ function extractEducationFromSection(section) {
   ];
 
   const lines = section.split('\n');
+  let i = 0;
 
-  for (const line of lines) {
-    const trimmed = line.trim();
+  while (i < lines.length) {
+    const trimmed = lines[i].trim();
+    i++;
+
     if (trimmed.length === 0 || trimmed.length > 150) continue;
 
-    // Check if line contains a degree pattern
-    for (const pattern of degreePatterns) {
-      if (trimmed.match(new RegExp(pattern, 'i'))) {
-        education.push(trimmed);
-        break;
+    let entry = trimmed;
+    const looksLikeInstitution = /university|college|institute|school|academy/i.test(trimmed);
+    
+    // If this looks like institution name, look ahead for degree
+    if (looksLikeInstitution && i < lines.length) {
+      const nextLine = lines[i].trim();
+      let hasDegree = false;
+      
+      // Check if next line contains a degree pattern
+      for (const pattern of degreePatterns) {
+        if (nextLine.match(new RegExp(pattern, 'i'))) {
+          entry = `${trimmed}, ${nextLine}`;
+          i++;
+          hasDegree = true;
+          break;
+        }
       }
+      
+      // If next line also doesn't have degree, check for graduation year
+      if (!hasDegree && /\d{4}/.test(nextLine)) {
+        entry = `${trimmed}, ${nextLine}`;
+        i++;
+      }
+    } else {
+      // Check if current line itself contains a degree pattern
+      let containsDegree = false;
+      for (const pattern of degreePatterns) {
+        if (trimmed.match(new RegExp(pattern, 'i'))) {
+          containsDegree = true;
+          break;
+        }
+      }
+      
+      // If contains degree and looks like it might have institution before, look back
+      if (containsDegree && education.length > 0 && i > 1) {
+        const prevLine = lines[i - 2].trim();
+        if (/university|college|institute|school|academy/i.test(prevLine)) {
+          // Already captured as part of previous entry
+          continue;
+        }
+      }
+      
+      if (containsDegree) {
+        entry = trimmed;
+      }
+    }
+
+    if (entry && entry.length > 5) {
+      education.push(entry);
     }
   }
 
