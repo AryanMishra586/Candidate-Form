@@ -174,18 +174,20 @@ function extractExperienceFromSection(section) {
   let processedText = section;
   
   // Insert newline before month patterns (handle concatenated dates)
-  processedText = processedText.replace(/([A-Z][a-z]+)\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/g, '$1\n$2');
-  processedText = processedText.replace(/([A-Za-z])\s*(\d{1,2}\/\d{1,2}\/\d{4})/g, '$1\n$2');
-  processedText = processedText.replace(/([A-Za-z])\s*(\d{4}\s*-\s*\d{4})/g, '$1\n$2');
+  processedText = processedText.replace(/([A-Za-z])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/g, '$1\n$2');
+  processedText = processedText.replace(/([A-Za-z])(\d{1,2}\/\d{1,2}\/\d{4})/g, '$1\n$2');
+  processedText = processedText.replace(/([A-Za-z])(\d{4}\s*-\s*\d{4})/g, '$1\n$2');
   
   const lines = processedText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
-  let currentJob = null;
-  let titleLine = '';
-  let companyLine = '';
-  let locationLine = '';
-  let periodLine = '';
-  let descriptionLines = [];
+  const jobs = [];
+  let jobData = {
+    title: '',
+    company: '',
+    location: '',
+    period: '',
+    description: []
+  };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -196,71 +198,45 @@ function extractExperienceFromSection(section) {
     // Check if line has job keywords
     const hasJobKeyword = line.match(/(developer|engineer|manager|designer|analyst|specialist|consultant|lead|architect|senior|junior|associate|director|coordinator|officer|supervisor|admin|support|executive|president|founder|intern|trainee|lead|head|chief)/i);
     
-    // Check if it's a company name (proper case, no keywords, short)
-    const isCompanyName = !hasJobKeyword && line.match(/^[A-Z][A-Za-z0-9\s&,\.\-()]+$/) && line.length < 80 && line.length > 2;
+    // Check if it's a company name or location (proper case, no keywords, short)
+    const isProperCase = line.match(/^[A-Z][A-Za-z0-9\s&,\.\-()]+$/) && line.length < 80 && line.length > 2;
 
     if (isDateLine) {
-      // This is the period line - save current job and start fresh
-      if (titleLine) {
-        const job = {
-          title: titleLine.substring(0, 100),
-          company: companyLine,
-          location: locationLine,
-          period: line,
-          description: descriptionLines
-        };
-        if (job.title) {
-          experience.push(job);
-        }
+      // Save period and continue collecting description lines
+      jobData.period = line;
+    } else if (hasJobKeyword && !jobData.title) {
+      // First job keyword line = job title
+      jobData.title = line.substring(0, 100);
+    } else if (isProperCase && !jobData.company && jobData.title) {
+      // After title, first proper case = company
+      jobData.company = line;
+    } else if (isProperCase && !jobData.location && jobData.title && jobData.company && !isDateLine) {
+      // After company, next proper case could be location (if not a date)
+      jobData.location = line;
+    } else if (hasJobKeyword && jobData.title && jobData.company && jobData.period) {
+      // Hit another job title with a complete job - save current and start new
+      if (jobData.title && jobData.period) {
+        jobs.push({ ...jobData });
       }
-      // Reset for next job
-      titleLine = '';
-      companyLine = '';
-      locationLine = '';
-      periodLine = line;
-      descriptionLines = [];
-    } else if (hasJobKeyword) {
-      // This looks like a job title
-      if (titleLine && !companyLine) {
-        // We have a title already, this might be company with keyword
-        companyLine = line;
-      } else if (!titleLine) {
-        titleLine = line;
-      } else {
-        descriptionLines.push(line);
-      }
-    } else if (isCompanyName) {
-      // This looks like a company name
-      if (titleLine && !companyLine) {
-        companyLine = line;
-      } else if (!titleLine) {
-        titleLine = line;
-      } else if (!locationLine) {
-        locationLine = line;
-      } else {
-        descriptionLines.push(line);
-      }
-    } else if (titleLine) {
-      // Description line
-      descriptionLines.push(line);
+      jobData = {
+        title: line.substring(0, 100),
+        company: '',
+        location: '',
+        period: '',
+        description: []
+      };
+    } else if (jobData.title && line.length > 10) {
+      // Description lines (longer lines after job header)
+      jobData.description.push(line);
     }
   }
 
   // Don't forget the last job
-  if (titleLine) {
-    const job = {
-      title: titleLine.substring(0, 100),
-      company: companyLine,
-      location: locationLine,
-      period: periodLine,
-      description: descriptionLines
-    };
-    if (job.title) {
-      experience.push(job);
-    }
+  if (jobData.title && jobData.period) {
+    jobs.push(jobData);
   }
 
-  return experience.slice(0, 10);
+  return jobs.slice(0, 10);
 }
 
 /**
