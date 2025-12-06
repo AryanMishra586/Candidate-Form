@@ -264,7 +264,7 @@ function extractExperienceFromSection(section) {
   if (!section) return [];
   
   const experience = [];
-  const lines = section.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const lines = section.split('\n');
   
   console.log(`[EXPERIENCE_PARSE] Processing ${lines.length} lines`);
   
@@ -272,48 +272,51 @@ function extractExperienceFromSection(section) {
   const datePattern = /([A-Za-z]+\s*\d{4}\s*[–\-]\s*[A-Za-z]+\s*\d{4}|[A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)/i;
   
   let i = 0;
+  let lastJobLineIndex = -1; // Track the line where we found a date
+  
   while (i < lines.length) {
-    const line = lines[i];
-    console.log(`[LINE ${i}] "${line}"`);
+    const line = lines[i].trim();
     
-    const hasDate = line.match(datePattern);
-    const isNumbered = line.match(/^(\d+)\./);
-    
-    // Skip lines that are clearly bullets or empty
-    if (line.startsWith('•') || line.startsWith('-') || line.length === 0) {
-      console.log(`  → Skipping (bullet or empty)`);
+    // Skip completely empty lines
+    if (line.length === 0) {
       i++;
       continue;
     }
     
-    // If this line has a date, it's likely a job title line
-    if (hasDate || isNumbered) {
-      console.log(`  → Found job line with date/number`);
+    console.log(`[LINE ${i}] "${line}"`);
+    
+    const hasDate = line.match(datePattern);
+    const isNumbered = line.match(/^(\d+)\./);
+    const isBullet = line.startsWith('•') || line.startsWith('-');
+    
+    // CRITICAL: A NEW JOB ENTRY can ONLY start if:
+    // 1. Line has a date OR is numbered (like "1. Job Title")
+    // 2. NOT a bullet point
+    if ((hasDate || isNumbered) && !isBullet) {
+      console.log(`[JOB FOUND] Line ${i} has date/number`);
+      lastJobLineIndex = i;
       
       // Look back to see if previous line is company name
       let companyName = '';
       if (i > 0) {
-        const prevLine = lines[i - 1];
+        const prevLine = lines[i - 1].trim();
         // Previous line is company if it doesn't have a date and isn't a bullet
-        if (!prevLine.match(datePattern) && !prevLine.startsWith('•') && !prevLine.startsWith('-') && prevLine.length > 0) {
+        if (prevLine.length > 0 && !prevLine.match(datePattern) && !prevLine.startsWith('•') && !prevLine.startsWith('-')) {
           companyName = prevLine;
-          console.log(`  → Found company name: "${companyName}"`);
+          console.log(`[COMPANY] Line ${i-1}: "${companyName}"`);
         }
       }
       
       // Parse this job line
       let jobTitle = line;
       let period = '';
-      let location = '';
       
       // Extract date from line
-      const dateMatch = line.match(/([A-Za-z]+\s*\d{4}\s*[–\-]\s*[A-Za-z]+\s*\d{4}|[A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)/i);
-      
+      const dateMatch = line.match(datePattern);
       if (dateMatch) {
         period = dateMatch[0];
-        // Remove date from line to get job title
         jobTitle = line.replace(dateMatch[0], '').trim();
-        console.log(`  → Extracted period: "${period}"`);
+        console.log(`[PERIOD] "${period}"`);
       }
       
       // Remove numbering if present
@@ -321,47 +324,45 @@ function extractExperienceFromSection(section) {
         jobTitle = jobTitle.replace(/^(\d+)\./, '').trim();
       }
       
-      // Remove common suffixes
-      jobTitle = jobTitle.replace(/\s*(Remote|On-site|Hybrid|Location:.*?)$/i, '').trim();
-      
       const entry = {
         title: jobTitle.substring(0, 150),
         company: companyName.substring(0, 100),
-        location: location,
         period: period,
         description: []
       };
       
-      console.log(`[EXPERIENCE] Title: "${entry.title}" | Company: "${entry.company}" | Period: "${period}"`);
+      console.log(`[ENTRY] Company: "${entry.company}" | Title: "${entry.title}" | Period: "${entry.period}"`);
       
-      // Collect all bullet points that follow until we hit another date
+      // Collect all lines until we hit ANOTHER line with a date
       i++;
       while (i < lines.length) {
-        const descLine = lines[i];
+        const nextLine = lines[i].trim();
         
-        // CRITICAL: Stop IMMEDIATELY if this line has a date (next job starts)
-        if (descLine.match(datePattern)) {
-          console.log(`  [STOP] Next job at line ${i}: "${descLine}"`);
+        // If empty, skip but continue looking
+        if (nextLine.length === 0) {
+          i++;
+          continue;
+        }
+        
+        // STOP if this line has a date (next job starts)
+        if (nextLine.match(datePattern)) {
+          console.log(`[STOP] Next job found at line ${i}: "${nextLine}"`);
           break;
         }
         
-        // Stop if we hit a section header
-        if (descLine.match(/^(Experience|Education|Skills|Projects|Achievements|Awards|Certifications|Languages|Summary|Objective|Contact|References)/i) && descLine.length < 50) {
-          console.log(`  [STOP] Section header at line ${i}: "${descLine}"`);
+        // STOP if section header
+        if (nextLine.match(/^(Experience|Education|Skills|Projects|Achievements|Awards)/i) && nextLine.length < 50) {
+          console.log(`[STOP] Section header at line ${i}: "${nextLine}"`);
           break;
         }
         
-        // Collect everything as description (bullets and non-bullets)
-        if (descLine.startsWith('•') || descLine.startsWith('-')) {
-          const bulletText = descLine.replace(/^[•\-]\s*/, '').trim();
-          if (bulletText.length > 0) {
-            entry.description.push(bulletText);
-            console.log(`  • Bullet: ${bulletText.substring(0, 50)}...`);
+        // Add to description: bullets, non-bullets, everything except dates
+        if (nextLine.length > 0) {
+          const cleanLine = nextLine.replace(/^[•\-]\s*/, '').trim();
+          if (cleanLine.length > 0 && cleanLine.length < 500) {
+            entry.description.push(cleanLine);
+            console.log(`[DESC] Added: "${cleanLine.substring(0, 60)}..."`);
           }
-        } else if (descLine.length > 0) {
-          // ANY line without date is part of this job's description
-          entry.description.push(descLine);
-          console.log(`  → Description: ${descLine.substring(0, 50)}...`);
         }
         
         i++;
@@ -374,7 +375,7 @@ function extractExperienceFromSection(section) {
     i++;
   }
   
-  console.log(`[EXPERIENCE_EXTRACTION] Total experiences found: ${experience.length}`);
+  console.log(`[EXPERIENCE_EXTRACTION] Total: ${experience.length}`);
   return experience.slice(0, 15);
 }
 
