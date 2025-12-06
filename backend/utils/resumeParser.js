@@ -230,6 +230,7 @@ function extractSkillsFromSection(section) {
  * 1. Numbered format (1.Job, 2.Job)
  * 2. Date patterns (Month-Month, YYYY format)
  * 3. Job title followed by dates
+ * 4. Company name followed by job title with dates
  */
 function extractExperienceFromSection(section) {
   if (!section) return [];
@@ -241,6 +242,7 @@ function extractExperienceFromSection(section) {
   const datePattern = /([A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)/i;
   
   let currentEntry = null;
+  let pendingCompanyName = null; // Store company name if we see it before job title
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -249,8 +251,11 @@ function extractExperienceFromSection(section) {
     // Check if this line starts with a number (1.Banter, 2.StudyNotion format)
     const numberedMatch = line.match(/^(\d+)\.(.*)/);
     
-    // Start new entry if: numbered format OR line contains dates OR looks like a job title
-    const isNewEntry = numberedMatch || (dateMatch && line.length < 150 && !line.startsWith('•'));
+    // Check if line has a date (potential job title line)
+    const hasDate = dateMatch && line.length < 150;
+    
+    // Start new entry if: numbered format OR line contains dates
+    const isNewEntry = numberedMatch || (hasDate && !line.startsWith('•'));
     
     if (isNewEntry) {
       // Save previous entry if exists
@@ -260,6 +265,7 @@ function extractExperienceFromSection(section) {
 
       let titleAndCompany = line;
       let period = '';
+      let company = pendingCompanyName || '';
 
       // Handle numbered format: "1.Banter GITHUB | LIVE SITE January-February, 2025"
       if (numberedMatch) {
@@ -287,13 +293,14 @@ function extractExperienceFromSection(section) {
 
       currentEntry = {
         title: title.substring(0, 100),
-        company: '',
+        company: company.substring(0, 100),
         location: '',
         period: period,
         description: []
       };
       
-      console.log(`[EXPERIENCE] Found: "${title}" | Period: "${period}"`);
+      console.log(`[EXPERIENCE] Found: "${title}" at "${company}" | Period: "${period}"`);
+      pendingCompanyName = null; // Reset pending company
     } else if (currentEntry && (line.startsWith('•') || line.startsWith('-'))) {
       // Bullet point - add as description
       const bulletText = line.replace(/^[•\-]\s*/, '').trim();
@@ -301,10 +308,21 @@ function extractExperienceFromSection(section) {
         currentEntry.description.push(bulletText);
       }
     } else if (currentEntry && line.length > 0 && !line.startsWith('•') && !line.startsWith('-')) {
-      // Any other non-empty line - might be company, location, or description
-      if (currentEntry.description.length > 0 || line.length > 15) {
+      // Any other non-empty line that's not a date - might be company, location, or description
+      // If we have no title yet for next entry, this might be a company name
+      if (!currentEntry.title) {
+        // Haven't set a job title yet, this might be company name
+        pendingCompanyName = line;
+      } else if (!currentEntry.company && currentEntry.description.length === 0 && line.length < 100) {
+        // If we haven't set company name yet and no descriptions, this might be company
+        currentEntry.company = line;
+      } else if (currentEntry.description.length > 0 || line.length > 15) {
+        // Otherwise add as description
         currentEntry.description.push(line);
       }
+    } else if (currentEntry && !currentEntry.title && line.length > 0) {
+      // If we haven't found a title yet, this line might be the company name
+      pendingCompanyName = line;
     }
   }
 
