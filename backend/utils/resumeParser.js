@@ -226,11 +226,11 @@ function extractSkillsFromSection(section) {
 
 /**
  * Extract experience from experience section
- * Detects experiences by:
- * 1. Numbered format (1.Job, 2.Job)
- * 2. Date patterns (Month-Month, YYYY format)
- * 3. Job title followed by dates
- * 4. Company name followed by job title with dates
+ * Handles resume formats like:
+ * Company Name
+ * Job Title   Date Range   Location
+ * • Bullet description
+ * • Bullet description
  */
 function extractExperienceFromSection(section) {
   if (!section) return [];
@@ -238,100 +238,112 @@ function extractExperienceFromSection(section) {
   const experience = [];
   const lines = section.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
-  // Date pattern: January-February, 2025 OR 01/2023-12/2023 OR 2023-2024
-  const datePattern = /([A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)/i;
+  console.log(`[EXPERIENCE_PARSE] Processing ${lines.length} lines`);
   
-  let currentEntry = null;
-  let pendingCompanyName = null; // Store company name if we see it before job title
-
-  for (let i = 0; i < lines.length; i++) {
+  // Date pattern: January-February, 2025 OR 01/2023-12/2023 OR 2023-2024 OR Feb 2025 – May 2025
+  const datePattern = /([A-Za-z]+\s*\d{4}\s*[–\-]\s*[A-Za-z]+\s*\d{4}|[A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)/i;
+  
+  let i = 0;
+  while (i < lines.length) {
     const line = lines[i];
-    const dateMatch = line.match(datePattern);
-
-    // Check if this line starts with a number (1.Banter, 2.StudyNotion format)
-    const numberedMatch = line.match(/^(\d+)\.(.*)/);
+    console.log(`[LINE ${i}] "${line}"`);
     
-    // Check if line has a date (potential job title line)
-    const hasDate = dateMatch && line.length < 150;
+    const hasDate = line.match(datePattern);
+    const isNumbered = line.match(/^(\d+)\./);
     
-    // Start new entry if: numbered format OR line contains dates
-    const isNewEntry = numberedMatch || (hasDate && !line.startsWith('•'));
+    // Skip lines that are clearly bullets or empty
+    if (line.startsWith('•') || line.startsWith('-') || line.length === 0) {
+      console.log(`  → Skipping (bullet or empty)`);
+      i++;
+      continue;
+    }
     
-    if (isNewEntry) {
-      // Save previous entry if exists
-      if (currentEntry && currentEntry.title) {
-        experience.push(currentEntry);
-      }
-
-      let titleAndCompany = line;
-      let period = '';
-      let company = pendingCompanyName || '';
-
-      // Handle numbered format: "1.Banter GITHUB | LIVE SITE January-February, 2025"
-      if (numberedMatch) {
-        titleAndCompany = numberedMatch[2].trim();
-      }
-
-      // Extract date from the line
-      const match = titleAndCompany.match(/^(.+?)\s+([A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)$/i);
+    // If this line has a date, it's likely a job title line
+    if (hasDate || isNumbered) {
+      console.log(`  → Found job line with date/number`);
       
-      if (match) {
-        titleAndCompany = match[1].trim();
-        period = match[2].trim();
-      } else {
-        // Try to find date with multiple spaces
-        const match2 = titleAndCompany.match(/^(.+?)\s{2,}([A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)$/i);
-        if (match2) {
-          titleAndCompany = match2[1].trim();
-          period = match2[2].trim();
+      // Look back to see if previous line is company name
+      let companyName = '';
+      if (i > 0) {
+        const prevLine = lines[i - 1];
+        // Previous line is company if it doesn't have a date and isn't a bullet
+        if (!prevLine.match(datePattern) && !prevLine.startsWith('•') && !prevLine.startsWith('-') && prevLine.length > 0) {
+          companyName = prevLine;
+          console.log(`  → Found company name: "${companyName}"`);
         }
       }
-
-      // Extract title (remove links like GITHUB, LIVE SITE, pipes)
-      const parts = titleAndCompany.split(/\s+GITHUB|\s+LIVE SITE|[|]/);
-      const title = parts[0].trim();
-
-      currentEntry = {
-        title: title.substring(0, 100),
-        company: company.substring(0, 100),
-        location: '',
+      
+      // Parse this job line
+      let jobTitle = line;
+      let period = '';
+      let location = '';
+      
+      // Extract date from line
+      const dateMatch = line.match(/([A-Za-z]+\s*\d{4}\s*[–\-]\s*[A-Za-z]+\s*\d{4}|[A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Present|Current)/i);
+      
+      if (dateMatch) {
+        period = dateMatch[0];
+        // Remove date from line to get job title
+        jobTitle = line.replace(dateMatch[0], '').trim();
+        console.log(`  → Extracted period: "${period}"`);
+      }
+      
+      // Remove numbering if present
+      if (isNumbered) {
+        jobTitle = jobTitle.replace(/^(\d+)\./, '').trim();
+      }
+      
+      // Remove common suffixes
+      jobTitle = jobTitle.replace(/\s*(Remote|On-site|Hybrid|Location:.*?)$/i, '').trim();
+      
+      const entry = {
+        title: jobTitle.substring(0, 150),
+        company: companyName.substring(0, 100),
+        location: location,
         period: period,
         description: []
       };
       
-      console.log(`[EXPERIENCE] Found: "${title}" at "${company}" | Period: "${period}"`);
-      pendingCompanyName = null; // Reset pending company
-    } else if (currentEntry && (line.startsWith('•') || line.startsWith('-'))) {
-      // Bullet point - add as description
-      const bulletText = line.replace(/^[•\-]\s*/, '').trim();
-      if (bulletText.length > 0) {
-        currentEntry.description.push(bulletText);
+      console.log(`[EXPERIENCE] Title: "${entry.title}" | Company: "${entry.company}" | Period: "${period}"`);
+      
+      // Collect all bullet points that follow
+      i++;
+      while (i < lines.length) {
+        const descLine = lines[i];
+        
+        // Stop if we hit another job entry (has date) or company name
+        if (descLine.match(datePattern) && !descLine.startsWith('•')) {
+          break;
+        }
+        
+        // Stop if we hit a section header
+        if (descLine.match(/^(Experience|Education|Skills|Projects|Achievements|Awards|Certifications|Languages|Summary|Objective|Contact|References)/i) && descLine.length < 50) {
+          break;
+        }
+        
+        // Add bullets to description
+        if (descLine.startsWith('•') || descLine.startsWith('-')) {
+          const bulletText = descLine.replace(/^[•\-]\s*/, '').trim();
+          if (bulletText.length > 0) {
+            entry.description.push(bulletText);
+          }
+          console.log(`  • ${bulletText.substring(0, 50)}...`);
+        } else if (descLine.length > 0 && !descLine.match(datePattern)) {
+          // Non-bullet continuation lines
+          entry.description.push(descLine);
+        }
+        
+        i++;
       }
-    } else if (currentEntry && line.length > 0 && !line.startsWith('•') && !line.startsWith('-')) {
-      // Any other non-empty line that's not a date - might be company, location, or description
-      // If we have no title yet for next entry, this might be a company name
-      if (!currentEntry.title) {
-        // Haven't set a job title yet, this might be company name
-        pendingCompanyName = line;
-      } else if (!currentEntry.company && currentEntry.description.length === 0 && line.length < 100) {
-        // If we haven't set company name yet and no descriptions, this might be company
-        currentEntry.company = line;
-      } else if (currentEntry.description.length > 0 || line.length > 15) {
-        // Otherwise add as description
-        currentEntry.description.push(line);
-      }
-    } else if (currentEntry && !currentEntry.title && line.length > 0) {
-      // If we haven't found a title yet, this line might be the company name
-      pendingCompanyName = line;
+      
+      experience.push(entry);
+      continue;
     }
+    
+    i++;
   }
-
-  // Don't forget the last entry
-  if (currentEntry && currentEntry.title) {
-    experience.push(currentEntry);
-  }
-
-  console.log(`[EXPERIENCE EXTRACTION] Total experiences found: ${experience.length}`);
+  
+  console.log(`[EXPERIENCE_EXTRACTION] Total experiences found: ${experience.length}`);
   return experience.slice(0, 15);
 }
 
