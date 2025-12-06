@@ -72,23 +72,29 @@ function extractSection(text, sectionNames) {
     const line = lines[i].trim();
     const lineLower = line.toLowerCase();
     
-    // A line is a section header if:
-    // 1. It contains a section keyword
-    // 2. AND it's short (< 50 chars)
-    // 3. AND it's NOT a typical job/company line (doesn't have dates, bullet points, etc.)
-    const containsHeaderKeyword = sectionHeaders.some(header => lineLower.includes(header));
-    const isShort = line.length < 50;
-    const looksLikeContent = /\d{1,2}\/\d{4}|[A-Za-z]+\s*\d{4}|•|\-\s|@|gmail|email/i.test(line); // Has date, bullet, or contact info
+    // A line is a section header ONLY if:
+    // 1. It starts with a section keyword (keyword at position 0)
+    // 2. AND keyword takes up >= 60% of the line
+    // 3. AND no action verbs before/after the keyword
+    // 4. AND no content patterns (dates, bullets, emails, etc.)
     
-    if (containsHeaderKeyword && isShort && !looksLikeContent) {
-      // Additional check: make sure the line is MOSTLY the header keyword
-      // e.g., "Education" or "EDUCATION" or "Education (Optional)" should match
-      // but "Software Development Engineer" should NOT match even if it's short
-      const headerMatch = sectionHeaders.find(h => lineLower.includes(h));
+    // Action verbs that indicate this is likely a sentence, not a header
+    const actionVerbs = /developed|created|built|managed|implemented|designed|led|worked|responsible|experience|skills|achieved|completed/i;
+    
+    const headerMatch = sectionHeaders.find(h => lineLower.includes(h));
+    
+    if (headerMatch) {
       const headerPosition = lineLower.indexOf(headerMatch);
+      const keywordLength = headerMatch.length;
+      const keywordPercentage = (keywordLength / line.length) * 100;
       
-      // If keyword is at start or takes up most of the line, it's probably a header
-      if (headerPosition === 0 || line.length - headerPosition <= 20) {
+      // Check for content patterns (dates, bullets, contact info, action verbs in context)
+      const hasContentPattern = /\d{1,2}\/\d{4}|[A-Za-z]+\s*\d{4}|•|\-\s|@|gmail|email|\d{4}\s*-\s*\d{4}/.test(line);
+      const hasActionVerbs = actionVerbs.test(line);
+      const isShort = line.length < 60;
+      
+      // TRUE HEADER: keyword at start, takes up significant portion, no content patterns, no action verbs
+      if (headerPosition === 0 && keywordPercentage >= 60 && isShort && !hasContentPattern && !hasActionVerbs) {
         sectionEnd = i;
         console.log(`[SECTION END] Found next section at line ${i}: "${line}"`);
         break;
