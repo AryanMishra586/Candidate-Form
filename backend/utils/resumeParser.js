@@ -85,6 +85,7 @@ async function parseResume(filePath) {
 
     console.log(`Resume parsing completed successfully`);
     console.log(`Found: ${parsed.skills.length} skills, ${parsed.experience.length} experiences, ${parsed.education.length} education entries`);
+    console.log(`Experience Section Raw:\n${experienceSection ? experienceSection.substring(0, 500) : 'NOT FOUND'}`);
     
     return parsed;
   } catch (error) {
@@ -196,11 +197,11 @@ function extractExperienceFromSection(section) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Check if this line starts with a number (1., 2., 3. format for projects/jobs)
-    const isNumberedEntry = line.match(/^\d+\./);
+    // Check if this line starts with a number (1., 1), 2., 3. format for projects/jobs)
+    const isNumberedEntry = line.match(/^\d+[\.\)]\s*/);
     
     // Check if this line is a date/period
-    const isDateLine = line.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|[A-Za-z]+-[A-Za-z]+,\s*\d{4})/i);
+    const isDateLine = line.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*(-|\s)+[a-zA-Z]*,?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4})/i);
     
     // Check if line is a location keyword
     const isLocation = line.match(/^(Remote|Onsite|On-site|Local|Hybrid|In-person)$/i);
@@ -225,7 +226,7 @@ function extractExperienceFromSection(section) {
       }
       
       // Remove number prefix and start new job
-      titleLine = line.replace(/^\d+\.\s*/, '');
+      titleLine = line.replace(/^\d+[\.\)]\s*/, '');
       companyLine = '';
       locationLine = '';
       periodLine = '';
