@@ -169,51 +169,106 @@ function extractExperienceFromSection(section) {
   if (!section) return [];
   
   const experience = [];
-  const lines = section.split('\n');
+  const lines = section.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   let currentJob = null;
+  let jobBuffer = []; // Buffer to group related lines
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) continue;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
 
-    // Check if this is a job title/company line (typically at start of line, contains job keywords)
-    const isJobTitle = trimmed.match(/^[^0-9]*?(developer|engineer|manager|designer|analyst|specialist|consultant|lead|architect|senior|junior|associate|director|coordinator|officer|supervisor|admin|support|executive|president|founder)/i);
+    // Check if line contains date pattern (marks end of job entry header)
+    const dateMatch = line.match(/(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2}\s*-\s*\d{1,2}\s*(months?|years?))/i);
     
-    // Check if this might be a company name (usually followed by a job title)
-    const isCompanyOrTitle = trimmed.length < 80 && !trimmed.match(/^\d{2,}/);
+    // Check if line contains job title keywords
+    const hasJobKeyword = line.match(/(developer|engineer|manager|designer|analyst|specialist|consultant|lead|architect|senior|junior|associate|director|coordinator|officer|supervisor|admin|support|executive|president|founder|intern|trainee|lead|head|chief)/i);
+    
+    // Check if line is likely a company name (title case, no job keywords, reasonable length)
+    const isLikelyCompany = !hasJobKeyword && line.match(/^[A-Z][A-Za-z0-9\s&,\.\-()]+$/) && line.length < 80 && line.length > 2;
 
-    if (isJobTitle || (isCompanyOrTitle && currentJob === null)) {
+    if (dateMatch) {
+      // This line has a date - likely the period line
+      if (jobBuffer.length > 0) {
+        // Process accumulated job lines
+        currentJob = parseJobLines(jobBuffer);
+        currentJob.period = line;
+        if (currentJob.title) {
+          experience.push(currentJob);
+        }
+        jobBuffer = [];
+        currentJob = null;
+      }
+    } else if (hasJobKeyword || isLikelyCompany) {
+      // This could be a job title or company name
+      jobBuffer.push(line);
+    } else if (jobBuffer.length > 0 && line.length > 10) {
+      // Description line after job/company
       if (currentJob) {
-        experience.push(currentJob);
-      }
-      
-      currentJob = {
-        title: trimmed.substring(0, 100),
-        company: '',
-        description: [],
-        period: ''
-      };
-    } else if (currentJob) {
-      // Check if line contains date pattern
-      const dateMatch = trimmed.match(/(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|January|February|March|April|May|June|July|August|September|October|November|December)/);
-      
-      if (dateMatch) {
-        currentJob.period = trimmed;
-      } else if (trimmed.match(/^[A-Z][A-Za-z\s&,\.]+$/) && currentJob.company === '') {
-        // Likely company name
-        currentJob.company = trimmed;
+        currentJob.description.push(line);
       } else {
-        // Description line
-        currentJob.description.push(trimmed);
+        // Save accumulated job info first
+        currentJob = parseJobLines(jobBuffer);
+        currentJob.description.push(line);
+        jobBuffer = [];
       }
+    } else if (jobBuffer.length > 0) {
+      // Short line, add to buffer (might be part of title/company)
+      jobBuffer.push(line);
     }
   }
 
-  if (currentJob && currentJob.title) {
-    experience.push(currentJob);
+  // Process any remaining job
+  if (jobBuffer.length > 0) {
+    currentJob = parseJobLines(jobBuffer);
+    if (currentJob && currentJob.title) {
+      experience.push(currentJob);
+    }
   }
 
   return experience.slice(0, 10);
+}
+
+/**
+ * Helper: Parse accumulated job lines into title/company/location
+ */
+function parseJobLines(lines) {
+  const job = {
+    title: '',
+    company: '',
+    location: '',
+    description: [],
+    period: ''
+  };
+
+  if (lines.length === 0) return job;
+
+  // Heuristic: lines with job keywords are titles, others are companies/locations
+  const titleLines = [];
+  const companyLines = [];
+
+  for (const line of lines) {
+    const hasJobKeyword = line.match(/(developer|engineer|manager|designer|analyst|specialist|consultant|lead|architect|senior|junior|associate|director|coordinator|officer|supervisor|admin|support|executive|president|founder|intern|trainee|lead|head|chief)/i);
+    
+    if (hasJobKeyword) {
+      titleLines.push(line);
+    } else {
+      companyLines.push(line);
+    }
+  }
+
+  // Assign parsed values
+  job.title = titleLines.join(' ').substring(0, 100) || lines[0].substring(0, 100);
+  
+  if (companyLines.length > 0) {
+    job.company = companyLines[0];
+    if (companyLines.length > 1) {
+      job.location = companyLines[1];
+    }
+  } else if (titleLines.length > 1) {
+    // If we have multiple title lines, last might be company
+    job.company = lines[lines.length - 1];
+  }
+
+  return job;
 }
 
 /**
