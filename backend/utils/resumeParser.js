@@ -72,31 +72,38 @@ function extractSection(text, sectionNames) {
     const line = lines[i].trim();
     const lineLower = line.toLowerCase();
     
-    // A line is a section header ONLY if:
-    // 1. It starts with a section keyword (keyword at position 0)
-    // 2. AND keyword takes up >= 60% of the line
-    // 3. AND no action verbs before/after the keyword
-    // 4. AND no content patterns (dates, bullets, emails, etc.)
+    // Skip empty lines
+    if (line.length === 0) continue;
     
-    // Action verbs that indicate this is likely a sentence, not a header
-    const actionVerbs = /developed|created|built|managed|implemented|designed|led|worked|responsible|experience|skills|achieved|completed/i;
+    // TRUE SECTION HEADER pattern:
+    // 1. Line is SHORT (< 60 chars) - headers are brief
+    // 2. Line starts with a section keyword (at position 0 after lowercase)
+    // 3. Keyword takes up >= 70% of line (nearly entire line is the header)
+    // 4. No typical content patterns (dates, bullets, job descriptions)
+    // 5. Likely ALL CAPS or Title Case (not mixed case like normal sentences)
     
-    const headerMatch = sectionHeaders.find(h => lineLower.includes(h));
+    const isShort = line.length < 60;
     
-    if (headerMatch) {
-      const headerPosition = lineLower.indexOf(headerMatch);
+    // Check if line STARTS with any section keyword
+    const headerMatch = sectionHeaders.find(h => lineLower.startsWith(h));
+    
+    if (headerMatch && isShort) {
       const keywordLength = headerMatch.length;
       const keywordPercentage = (keywordLength / line.length) * 100;
       
-      // Check for content patterns (dates, bullets, contact info, action verbs in context)
-      const hasContentPattern = /\d{1,2}\/\d{4}|[A-Za-z]+\s*\d{4}|•|\-\s|@|gmail|email|\d{4}\s*-\s*\d{4}/.test(line);
-      const hasActionVerbs = actionVerbs.test(line);
-      const isShort = line.length < 60;
+      // Content patterns that indicate this is NOT a header
+      const hasContentPattern = /\d{1,2}\/\d{4}|[A-Za-z]+\s*\d{4}|•|\-\s|@|gmail|email|\d{4}\s*-\s*\d{4}|remote|location|at\s|in\s/i.test(line);
       
-      // TRUE HEADER: keyword at start, takes up significant portion, no content patterns, no action verbs
-      if (headerPosition === 0 && keywordPercentage >= 60 && isShort && !hasContentPattern && !hasActionVerbs) {
+      // Check if line is mostly header (keyword is dominant)
+      const isMostlyHeader = keywordPercentage >= 70;
+      
+      // Additional check: after keyword, only punctuation or short words like "and", "or", etc.
+      const afterKeyword = line.substring(headerMatch.length).trim().toLowerCase();
+      const afterKeywordOk = afterKeyword.length === 0 || /^[\(\)&and\/or,]*$|^\d+$/.test(afterKeyword);
+      
+      if (isMostlyHeader && !hasContentPattern && afterKeywordOk) {
         sectionEnd = i;
-        console.log(`[SECTION END] Found next section at line ${i}: "${line}"`);
+        console.log(`[SECTION END] Found next section at line ${i}: "${line}" (keyword: "${headerMatch}", ${keywordPercentage.toFixed(0)}% of line)`);
         break;
       }
     }
