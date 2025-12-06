@@ -107,10 +107,24 @@ async function parseResume(filePath) {
     const contactSection = extractSection(text, ['contact', 'personal']);
     const summarySection = extractSection(text, ['summary', 'objective', 'professional summary']);
     const skillsSection = extractSection(text, ['skills', 'technical skills', 'competencies']);
-    const experienceSection = extractSection(text, ['experience', 'work experience', 'employment', 'professional experience', 'professional work']);
+    const experienceSection = extractSection(text, ['experience', 'work experience', 'employment', 'professional experience', 'professional work', 'career history', 'professional history', 'work history']);
     const educationSection = extractSection(text, ['education', 'academic', 'qualifications']);
     const projectsSection = extractSection(text, ['projects', 'portfolio']);
     const achievementsSection = extractSection(text, ['achievements', 'awards', 'certifications']);
+    
+    // Log diagnostic info about experience section
+    if (!experienceSection) {
+      console.log(`\n[DIAGNOSTIC] Experience section NOT found!`);
+      console.log(`\n[CHECKING] Looking for date patterns in text...`);
+      const datePattern = /([A-Za-z]+-[A-Za-z]+,?\s*\d{4}|\d{1,2}\/\d{4}\s*-\s*\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4})/g;
+      const dateMatches = text.match(datePattern);
+      if (dateMatches) {
+        console.log(`[DATES FOUND] ${dateMatches.length} date patterns found in resume:`);
+        dateMatches.slice(0, 5).forEach(d => console.log(`  - "${d}"`));
+      } else {
+        console.log(`[NO DATES] No date patterns found in resume at all!`);
+      }
+    }
 
     const parsed = {
       rawText: text,
