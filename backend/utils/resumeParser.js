@@ -286,7 +286,8 @@ function extractExperienceFromSection(section) {
     
     console.log(`[LINE ${i}] "${line}"`);
     
-    const hasDate = line.match(datePattern);
+    // Match dates only with space before them to avoid matching "ManagementFeb" or "concurrent"
+    const hasDate = /\s[A-Za-z]{3}\s+\d{4}\s*[–\-]\s*[A-Za-z]{3}\s+\d{4}|\d{4}\s*-\s*\d{4}|^\d{4}\s*-\s*\d{4}$/i.test(line);
     const isNumbered = line.match(/^(\d+)\./);
     const isBullet = line.startsWith('•') || line.startsWith('-');
     
@@ -312,11 +313,12 @@ function extractExperienceFromSection(section) {
       let jobTitle = line;
       let period = '';
       
-      // Extract date from line
-      const dateMatch = line.match(datePattern);
+      // Extract date from line - ONLY match dates with space before month name
+      // This prevents "ManagementFeb" from matching
+      const dateMatch = line.match(/\s([A-Za-z]{3}\s+\d{4}\s*[–\-]\s*[A-Za-z]{3}\s+\d{4}|\d{4}\s*-\s*\d{4})/i);
       if (dateMatch) {
-        period = dateMatch[0];
-        jobTitle = line.replace(dateMatch[0], '').trim();
+        period = dateMatch[1].trim();
+        jobTitle = line.substring(0, dateMatch.index).trim();
         console.log(`[PERIOD] "${period}"`);
       }
       
@@ -346,7 +348,7 @@ function extractExperienceFromSection(section) {
         }
         
         // STOP if this line has a date (next job starts)
-        if (nextLine.match(datePattern)) {
+        if (/\s[A-Za-z]{3}\s+\d{4}\s*[–\-]\s*[A-Za-z]{3}\s+\d{4}|\d{4}\s*-\s*\d{4}|^\d{4}\s*-\s*\d{4}$/i.test(nextLine)) {
           console.log(`[STOP] Next job found at line ${i}: "${nextLine}"`);
           break;
         }
