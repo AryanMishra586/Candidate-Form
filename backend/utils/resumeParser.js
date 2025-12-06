@@ -12,13 +12,45 @@ async function extractTextFromPDF(filePath) {
     return data.text;
   } catch (error) {
     console.error('Error parsing PDF:', error.message);
-    // Return a simple fallback if PDF parsing fails
     return `[PDF Parsing Failed] File: ${filePath}. Please check file format.`;
   }
 }
 
 /**
- * Parse resume and extract key information
+ * Find and extract a section from text
+ * Looks for section headers and extracts content until next section
+ */
+function extractSection(text, sectionNames) {
+  const lines = text.split('\n');
+  let sectionStart = -1;
+  let sectionEnd = lines.length;
+
+  // Find section start
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim().toLowerCase();
+    if (sectionNames.some(name => line.includes(name.toLowerCase()))) {
+      sectionStart = i + 1;
+      break;
+    }
+  }
+
+  if (sectionStart === -1) return null;
+
+  // Find section end (next major section header)
+  const sectionHeaders = ['experience', 'education', 'skills', 'projects', 'achievements', 'certifications', 'languages', 'summary', 'objective', 'contact', 'references'];
+  for (let i = sectionStart; i < lines.length; i++) {
+    const line = lines[i].trim().toLowerCase();
+    if (sectionHeaders.some(header => line.includes(header) && line.length < 50)) {
+      sectionEnd = i;
+      break;
+    }
+  }
+
+  return lines.slice(sectionStart, sectionEnd).join('\n').trim();
+}
+
+/**
+ * Parse resume using section-based approach
  */
 async function parseResume(filePath) {
   try {
@@ -26,35 +58,48 @@ async function parseResume(filePath) {
     const text = await extractTextFromPDF(filePath);
     console.log(`Extracted text length: ${text.length}`);
     
-    // Extract key sections and information
+    // Extract key sections first
+    const contactSection = extractSection(text, ['contact', 'personal']);
+    const summarySection = extractSection(text, ['summary', 'objective', 'professional summary']);
+    const skillsSection = extractSection(text, ['skills', 'technical skills', 'competencies']);
+    const experienceSection = extractSection(text, ['experience', 'work experience', 'employment', 'professional experience']);
+    const educationSection = extractSection(text, ['education', 'academic', 'qualifications']);
+    const projectsSection = extractSection(text, ['projects', 'portfolio']);
+    const achievementsSection = extractSection(text, ['achievements', 'awards', 'certifications']);
+
     const parsed = {
       rawText: text,
-      contact: extractContact(text),
-      skills: extractSkills(text),
-      experience: extractExperience(text),
-      education: extractEducation(text),
-      summary: extractSummary(text)
+      contact: extractContact(contactSection || text),
+      summary: extractSummaryFromSection(summarySection),
+      skills: extractSkillsFromSection(skillsSection),
+      experience: extractExperienceFromSection(experienceSection),
+      education: extractEducationFromSection(educationSection),
+      projects: extractProjectsFromSection(projectsSection),
+      achievements: extractAchievementsFromSection(achievementsSection)
     };
 
     console.log(`Resume parsing completed successfully`);
+    console.log(`Found: ${parsed.skills.length} skills, ${parsed.experience.length} experiences, ${parsed.education.length} education entries`);
+    
     return parsed;
   } catch (error) {
     console.error('Error in parseResume:', error.message);
-    // Return basic structure even if parsing fails
     return {
       rawText: '',
       contact: {},
+      summary: '',
       skills: [],
       experience: [],
       education: [],
-      summary: 'Resume parsing failed',
+      projects: [],
+      achievements: [],
       error: error.message
     };
   }
 }
 
 /**
- * Extract contact information (email, phone, linkedin)
+ * Extract contact information from section or full text
  */
 function extractContact(text) {
   const contact = {};
@@ -67,7 +112,7 @@ function extractContact(text) {
   }
 
   // Phone number extraction (various formats)
-  const phoneRegex = /(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/g;
+  const phoneRegex = /(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})|(\+91[-.\s]?[0-9]{10})/g;
   const phones = text.match(phoneRegex);
   if (phones) {
     contact.phone = phones[0];
@@ -80,114 +125,198 @@ function extractContact(text) {
     contact.linkedin = linkedinMatch[0];
   }
 
+  // GitHub extraction
+  const githubRegex = /github\.com\/([a-zA-Z0-9-]+)/i;
+  const githubMatch = text.match(githubRegex);
+  if (githubMatch) {
+    contact.github = githubMatch[0];
+  }
+
   return contact;
 }
 
 /**
- * Extract skills section
+ * Extract skills from skills section
  */
-function extractSkills(text) {
-  const skills = [];
-  const skillsKeywords = ['Skills', 'Technical Skills', 'Competencies'];
+function extractSkillsFromSection(section) {
+  if (!section) return [];
   
-  for (const keyword of skillsKeywords) {
-    const regex = new RegExp(`${keyword}[:\\s]*([^\\n]*(?:\\n(?!\\w+[:\\s])[^\\n]*)*)`);
-    const match = text.match(regex);
-    
-    if (match) {
-      const skillsText = match[1];
-      // Split by common delimiters and clean up
-      const extractedSkills = skillsText
-        .split(/[,•\n]/g)
-        .map(s => s.trim())
-        .filter(s => s.length > 0 && s.length < 50);
-      
-      skills.push(...extractedSkills);
-      break;
-    }
+  const skills = [];
+  const lines = section.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0 || trimmed.length > 100) continue;
+
+    // Split by common delimiters
+    const items = trimmed
+      .split(/[,•·\-\|]/g)
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && s.length < 50 && !s.match(/^\d+\./));
+
+    skills.push(...items);
   }
 
-  return [...new Set(skills)]; // Remove duplicates
+  // Remove duplicates and sort by frequency
+  const uniqueSkills = [...new Set(skills)];
+  return uniqueSkills.slice(0, 30); // Top 30 skills
 }
 
 /**
- * Extract experience/work history
+ * Extract experience from experience section
  */
-function extractExperience(text) {
-  const experience = [];
+function extractExperienceFromSection(section) {
+  if (!section) return [];
   
-  // Look for job titles and companies (heuristic approach)
-  const lines = text.split('\n');
+  const experience = [];
+  const lines = section.split('\n');
   let currentJob = null;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+
+    // Check if this is a job title/company line (typically at start of line, contains job keywords)
+    const isJobTitle = trimmed.match(/^[^0-9]*?(developer|engineer|manager|designer|analyst|specialist|consultant|lead|architect|senior|junior|associate|director|coordinator|officer|supervisor|admin|support|executive|president|founder)/i);
     
-    // Look for common job title patterns
-    if (line.match(/^(.*?)(Developer|Engineer|Manager|Designer|Analyst|Specialist|Consultant|Lead|Senior|Junior).*/i)) {
+    // Check if this might be a company name (usually followed by a job title)
+    const isCompanyOrTitle = trimmed.length < 80 && !trimmed.match(/^\d{2,}/);
+
+    if (isJobTitle || (isCompanyOrTitle && currentJob === null)) {
       if (currentJob) {
         experience.push(currentJob);
       }
       
       currentJob = {
-        title: line.substring(0, 100),
-        description: []
+        title: trimmed.substring(0, 100),
+        company: '',
+        description: [],
+        period: ''
       };
-    } else if (currentJob && line.length > 0 && !line.match(/^\d{4}/)) {
-      currentJob.description.push(line);
-    } else if (line.match(/^\d{4}/)) {
-      // Likely a date, mark as new entry
-      if (currentJob) {
-        currentJob.period = line;
+    } else if (currentJob) {
+      // Check if line contains date pattern
+      const dateMatch = trimmed.match(/(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4}|January|February|March|April|May|June|July|August|September|October|November|December)/);
+      
+      if (dateMatch) {
+        currentJob.period = trimmed;
+      } else if (trimmed.match(/^[A-Z][A-Za-z\s&,\.]+$/) && currentJob.company === '') {
+        // Likely company name
+        currentJob.company = trimmed;
+      } else {
+        // Description line
+        currentJob.description.push(trimmed);
       }
     }
   }
 
-  if (currentJob) {
+  if (currentJob && currentJob.title) {
     experience.push(currentJob);
   }
 
-  return experience.slice(0, 10); // Return last 10 jobs
+  return experience.slice(0, 10);
 }
 
 /**
- * Extract education information
+ * Extract education from education section
  */
-function extractEducation(text) {
+function extractEducationFromSection(section) {
+  if (!section) return [];
+  
   const education = [];
-  const educationKeywords = ['Education', 'Academic', 'Degree'];
-  
-  const degrees = ['B.E', 'B.Tech', 'B.S', 'B.A', 'M.Tech', 'M.S', 'MBA', 'M.A', 'Ph.D', 'Bachelor', 'Master', 'Diploma'];
-  
-  for (const degree of degrees) {
-    const regex = new RegExp(`(${degree}[^\\n]{0,100})`, 'gi');
-    const matches = text.match(regex);
-    
-    if (matches) {
-      education.push(...matches.map(m => m.trim()));
+  const degreePatterns = [
+    'bachelor|b\\.e|b\\.tech|b\\.s|b\\.a|b\\.com',
+    'master|m\\.tech|m\\.s|m\\.a|mba',
+    'ph\\.d|phd',
+    'diploma',
+    'associate',
+    'certificate'
+  ];
+
+  const lines = section.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0 || trimmed.length > 150) continue;
+
+    // Check if line contains a degree pattern
+    for (const pattern of degreePatterns) {
+      if (trimmed.match(new RegExp(pattern, 'i'))) {
+        education.push(trimmed);
+        break;
+      }
     }
   }
 
-  return [...new Set(education)].slice(0, 5); // Remove duplicates, return top 5
+  return [...new Set(education)].slice(0, 5);
 }
 
 /**
- * Extract professional summary
+ * Extract projects from projects section
  */
-function extractSummary(text) {
-  const summaryKeywords = ['Summary', 'Professional Summary', 'Objective', 'About'];
+function extractProjectsFromSection(section) {
+  if (!section) return [];
   
-  for (const keyword of summaryKeywords) {
-    const regex = new RegExp(`${keyword}[:\\s]*([^\\n]{0,300})`);
-    const match = text.match(regex);
-    
-    if (match) {
-      return match[1].trim();
+  const projects = [];
+  const lines = section.split('\n');
+  let currentProject = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+
+    // Project titles are usually short, non-indented lines
+    if (!trimmed.match(/^\s/) && trimmed.length < 80 && trimmed.length > 5) {
+      if (currentProject) {
+        projects.push(currentProject);
+      }
+      currentProject = {
+        title: trimmed,
+        description: []
+      };
+    } else if (currentProject && trimmed.length > 10) {
+      currentProject.description.push(trimmed);
     }
   }
 
-  // If no summary found, return first 300 characters
-  return text.substring(0, 300).trim();
+  if (currentProject && currentProject.title) {
+    projects.push(currentProject);
+  }
+
+  return projects.slice(0, 5);
+}
+
+/**
+ * Extract achievements/certifications
+ */
+function extractAchievementsFromSection(section) {
+  if (!section) return [];
+  
+  const achievements = [];
+  const lines = section.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length > 10 && trimmed.length < 150) {
+      achievements.push(trimmed);
+    }
+  }
+
+  return achievements.slice(0, 10);
+}
+
+/**
+ * Extract summary from summary section
+ */
+function extractSummaryFromSection(section) {
+  if (!section) return '';
+  
+  const lines = section.split('\n');
+  const summaryLines = lines
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && l.length < 200)
+    .slice(0, 3);
+
+  return summaryLines.join(' ').substring(0, 500);
 }
 
 module.exports = {
