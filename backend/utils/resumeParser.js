@@ -175,90 +175,72 @@ function extractExperienceFromSection(section) {
   if (!section) return [];
   
   const experience = [];
+  const lines = section.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   
-  // First, separate lines by date patterns (dates often concatenated with previous line)
-  let processedText = section;
-  
-  // Insert newline before month patterns (handle concatenated dates)
-  processedText = processedText.replace(/([A-Za-z])(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/g, '$1\n$2');
-  processedText = processedText.replace(/([A-Za-z])(\d{1,2}\/\d{1,2}\/\d{4})/g, '$1\n$2');
-  processedText = processedText.replace(/([A-Za-z])(\d{4}\s*-\s*\d{4})/g, '$1\n$2');
-  // Also handle location keywords concatenated with title
-  processedText = processedText.replace(/([a-z])(Remote|Onsite|On-site|Local|Hybrid|In-person)/g, '$1\n$2');
-  
-  const lines = processedText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-  
-  let titleLine = '';
-  let companyLine = '';
-  let locationLine = '';
-  let periodLine = '';
-  let descriptionLines = [];
+  let currentEntry = null;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Check if this line starts with a number (1., 1), 2., 3. format for projects/jobs)
-    const isNumberedEntry = line.match(/^\d+[\.\)]\s*/);
+    // Check if this line starts with a number (1.Banter, 2.StudyNotion format)
+    const numberedMatch = line.match(/^(\d+)\.(.*)/);
     
-    // Check if this line is a date/period
-    const isDateLine = line.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*(-|\s)+[a-zA-Z]*,?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4})/i);
-    
-    // Check if line is a location keyword
-    const isLocation = line.match(/^(Remote|Onsite|On-site|Local|Hybrid|In-person)$/i);
-    
-    // Check if line has job keywords
-    const hasJobKeyword = line.match(/(developer|engineer|manager|designer|analyst|specialist|consultant|lead|architect|senior|junior|associate|director|coordinator|officer|supervisor|admin|support|executive|president|founder|intern|trainee|lead|head|chief)/i);
-    
-    // Check if it's a company name (proper case, no keywords, short, not location)
-    const isCompanyName = !hasJobKeyword && !isLocation && line.match(/^[A-Z][A-Za-z0-9\s&,\.\-()]+$/) && line.length < 80 && line.length > 2;
-
-    if (isNumberedEntry) {
-      // Start of a new job entry - save previous if exists
-      if (titleLine && periodLine) {
-        const job = {
-          title: titleLine.substring(0, 100),
-          company: companyLine,
-          location: locationLine,
-          period: periodLine,
-          description: descriptionLines
-        };
-        experience.push(job);
+    if (numberedMatch) {
+      // Save previous entry if exists
+      if (currentEntry && currentEntry.title) {
+        experience.push(currentEntry);
       }
+
+      // Extract the rest of the line after the number
+      let restOfLine = numberedMatch[2].trim();
       
-      // Remove number prefix and start new job
-      titleLine = line.replace(/^\d+[\.\)]\s*/, '');
-      companyLine = '';
-      locationLine = '';
-      periodLine = '';
-      descriptionLines = [];
-    } else if (isDateLine) {
-      // This is the period line
-      periodLine = line;
-    } else if (isLocation) {
-      // Location keyword
-      locationLine = line;
-    } else if (isCompanyName && !companyLine && titleLine) {
-      // After job title, first company name = company
-      companyLine = line;
-    } else if (titleLine && periodLine && line.length > 10) {
-      // Description line (after we have title and period)
-      descriptionLines.push(line);
-    } else if (titleLine && !periodLine && line.startsWith('•')) {
-      // Bullet point before period - it's a description
-      descriptionLines.push(line);
+      // Try to find date at the end of the line (usually far right with spaces)
+      const dateAtEndMatch = restOfLine.match(/^(.+?)\s{2,}([A-Za-z]+-[A-Za-z]+,\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{4}|\d{4}\s*-\s*\d{4})$/);
+      
+      let titleAndCompany = restOfLine;
+      let period = '';
+      
+      if (dateAtEndMatch) {
+        titleAndCompany = dateAtEndMatch[1].trim();
+        period = dateAtEndMatch[2].trim();
+      } else {
+        // Try to find date at the end even without multiple spaces
+        const dateAtEndMatch2 = restOfLine.match(/^(.+?)\s+([A-Za-z]+-[A-Za-z]+,\s*\d{4})$/);
+        if (dateAtEndMatch2) {
+          titleAndCompany = dateAtEndMatch2[1].trim();
+          period = dateAtEndMatch2[2].trim();
+        }
+      }
+
+      // Split title and company/links (usually separated by space or pipes)
+      // Format: "Banter GITHUB | LIVE SITE" or "Banter"
+      const parts = titleAndCompany.split(/\s+GITHUB|\s+LIVE SITE|[|]/);
+      const title = parts[0].trim();
+
+      currentEntry = {
+        title: title.substring(0, 100),
+        company: '',
+        location: '',
+        period: period,
+        description: []
+      };
+    } else if (currentEntry && line.startsWith('•')) {
+      // Bullet point - add as description
+      const bulletText = line.replace(/^•\s*/, '').trim();
+      if (bulletText.length > 0) {
+        currentEntry.description.push(bulletText);
+      }
+    } else if (currentEntry && line.length > 0 && !line.startsWith('•')) {
+      // Any other non-empty line that's not a bullet - might be description
+      if (currentEntry.description.length > 0 || line.length > 20) {
+        currentEntry.description.push(line);
+      }
     }
   }
 
-  // Don't forget the last job
-  if (titleLine && periodLine) {
-    const job = {
-      title: titleLine.substring(0, 100),
-      company: companyLine,
-      location: locationLine,
-      period: periodLine,
-      description: descriptionLines
-    };
-    experience.push(job);
+  // Don't forget the last entry
+  if (currentEntry && currentEntry.title) {
+    experience.push(currentEntry);
   }
 
   return experience.slice(0, 10);
