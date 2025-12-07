@@ -1,30 +1,46 @@
-import { useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
+import LogoutConfirmationPage from './pages/LogoutConfirmationPage';
+import LogoutPage from './pages/LogoutPage';
+import IndividualDashboard from './pages/IndividualDashboard';
+import CompanyDashboard from './pages/CompanyDashboard';
+import ProtectedRoute from './components/ProtectedRoute';
 import CandidateForm from './components/CandidateForm';
 import ResultsDisplay from './components/ResultsDisplay';
+import { useState } from 'react';
 
-export default function App() {
-  // State to track which view to show ('form' or 'results')
+function HomePage() {
+  const { isAuthenticated, loading, user } = useAuth();
+
+  if (loading) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>Loading...</div>;
+  }
+
+  if (isAuthenticated && user) {
+    // Redirect to appropriate dashboard based on user type
+    if (user.userType === 'company') {
+      return <Navigate to="/company-dashboard" replace />;
+    }
+    return <Navigate to="/individual-dashboard" replace />;
+  }
+
+  return <Navigate to="/login" replace />;
+}
+
+function CandidateFormPage() {
   const [currentView, setCurrentView] = useState('form');
-
-  // State to store the candidate ID returned from form submission
   const [candidateId, setCandidateId] = useState(null);
 
-  // Function called when form is successfully submitted
-  // Receives the candidate ID from the form component
   const handleFormSubmitSuccess = (id) => {
-    // Store the ID
     setCandidateId(id);
-
-    // Switch to results view
     setCurrentView('results');
   };
 
-  // Function called when user clicks "Submit Another Form" button
   const handleReset = () => {
-    // Clear the candidate ID
     setCandidateId(null);
-
-    // Switch back to form view
     setCurrentView('form');
   };
 
@@ -38,7 +54,6 @@ export default function App() {
       display: 'flex',
       flexDirection: 'column'
     }}>
-      {/* Navigation Header */}
       <header style={{
         backgroundColor: '#667eea',
         color: 'white',
@@ -49,34 +64,30 @@ export default function App() {
       }}>
         <h1 style={{ margin: '0 0 10px 0', fontSize: '32px', fontWeight: 'bold' }}>
           Candidate Form & Verification System
-        </h1>     
+        </h1>
         <p style={{ margin: 0, opacity: 0.95, fontSize: '16px', fontWeight: 500 }}>
           {currentView === 'form' ? ' Submit your information' : ' Your Submission Results'}
         </p>
       </header>
 
-      {/* Main Content Area */}
       <main style={{
         flex: 1,
         padding: '40px 20px',
         width: '100%',
         backgroundColor: '#f8f9fa'
       }}>
-        {/* Show Form View */}
         {currentView === 'form' && (
           <CandidateForm onSubmitSuccess={handleFormSubmitSuccess} />
         )}
 
-        {/* Show Results View */}
         {currentView === 'results' && (
-          <ResultsDisplay 
-            candidateId={candidateId} 
-            onReset={handleReset} 
+          <ResultsDisplay
+            candidateId={candidateId}
+            onReset={handleReset}
           />
         )}
       </main>
 
-      {/* Footer */}
       <footer style={{
         backgroundColor: '#2c3e50',
         color: 'white',
@@ -89,5 +100,43 @@ export default function App() {
         <p style={{ margin: 0 }}> 2025 Candidate Form System. All rights reserved.</p>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route
+        path="/logout-confirm"
+        element={
+          <ProtectedRoute>
+            <LogoutConfirmationPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="/logout" element={<LogoutPage />} />
+      <Route path="/form" element={<CandidateFormPage />} />
+
+      <Route
+        path="/individual-dashboard"
+        element={
+          <ProtectedRoute allowedTypes={['individual']}>
+            <IndividualDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/company-dashboard"
+        element={
+          <ProtectedRoute allowedTypes={['company']}>
+            <CompanyDashboard />
+          </ProtectedRoute>
+        }
+      />
+    </Routes>
   );
 }

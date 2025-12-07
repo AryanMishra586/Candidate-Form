@@ -17,7 +17,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
+const authRoutes = require('./routes/authRoutes');
 const candidateRoutes = require('./routes/candidateRoutes');
+
+app.use('/api/auth', authRoutes);
 app.use('/api/candidates', candidateRoutes);
 
 // Health Route
