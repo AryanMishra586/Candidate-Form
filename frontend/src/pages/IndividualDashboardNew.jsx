@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config';
 import ResumeUpload from '../components/individual/ResumeUpload';
@@ -9,7 +8,6 @@ import './IndividualDashboard.css';
 
 const IndividualDashboard = () => {
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('profile');
   const [profileData, setProfileData] = useState(null);
   const [resumeData, setResumeData] = useState(null);
@@ -58,12 +56,6 @@ const IndividualDashboard = () => {
         setResumeData(data.resume);
         console.log('[INDIVIDUAL DASHBOARD] Resume fetched:', data.resume);
       } else {
-        // No resume uploaded or error fetching resume
-        setResumeData(null);
-        if (resumeRes.status === 'fulfilled') {
-          const errorData = await resumeRes.value.json();
-          console.log('[INDIVIDUAL DASHBOARD] Resume error:', errorData.error);
-        }
         console.log('[INDIVIDUAL DASHBOARD] No resume found');
       }
 
@@ -83,11 +75,8 @@ const IndividualDashboard = () => {
   };
 
   const handleResumeUploadSuccess = (newResumeData) => {
-    console.log('[DASHBOARD] Resume upload success, new resume data:', newResumeData);
     setResumeData(newResumeData);
     setSuccessMessage('Resume uploaded and parsed successfully!');
-    // Explicitly stay on resume tab
-    setActiveTab('resume');
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
@@ -95,10 +84,6 @@ const IndividualDashboard = () => {
     fetchProfileData();
     setSuccessMessage('Document uploaded successfully!');
     setTimeout(() => setSuccessMessage(''), 3000);
-  };
-
-  const handleLogout = () => {
-    navigate('/logout-confirm');
   };
 
   if (loading || loadingData) {
@@ -124,13 +109,6 @@ const IndividualDashboard = () => {
               <span className="stat-label">Profile Completion</span>
               <span className="stat-value">{calculateProfileCompletion(profileData, resumeData, backgroundStatus)}%</span>
             </div>
-            <button 
-              className="logout-btn"
-              onClick={handleLogout}
-              title="Logout"
-            >
-              🚪 Logout
-            </button>
           </div>
         </div>
       </header>

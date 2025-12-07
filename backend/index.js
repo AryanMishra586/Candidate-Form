@@ -19,9 +19,11 @@ app.use(express.urlencoded({ extended: true }));
 // Routes
 const authRoutes = require('./routes/authRoutes');
 const candidateRoutes = require('./routes/candidateRoutes');
+const individualRoutes = require('./routes/individualRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/candidates', candidateRoutes);
+app.use('/api/individual', individualRoutes);
 
 // Health Route
 app.get('/', (req, res) => {

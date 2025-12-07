@@ -12,9 +12,9 @@ const GEMINI_API_KEY = process.env.GOOGLE_API_KEY;
 const API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 /**
- * Call Gemini API for intelligent ATS scoring
+ * Call Gemini API for intelligent ATS scoring with retry logic
  */
-async function callGeminiForAtsScore(resumeData) {
+async function callGeminiForAtsScore(resumeData, retries = 3, backoffMs = 1000) {
   try {
     if (!GEMINI_API_KEY) {
       console.warn('[ATS-GEMINI] ⚠️ GOOGLE_API_KEY not set - will use fallback');
@@ -45,37 +45,86 @@ Return a JSON object ONLY (no other text):
 
     console.log('[ATS-GEMINI] 🤖 Calling Gemini API for ATS analysis...');
 
-    const response = await axios.post(
-      `${API_BASE_URL}?key=${GEMINI_API_KEY}`,
-      {
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }]
-      },
-      {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 15000
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await axios.post(
+          `${API_BASE_URL}?key=${GEMINI_API_KEY}`,
+          {
+            contents: [{
+              parts: [{
+                text: prompt
+              }]
+            }]
+          },
+          {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: 15000
+          }
+        );
+
+        const responseText = response.data.candidates[0].content.parts[0].text;
+        console.log('[ATS-GEMINI] ✅ Gemini response received');
+
+        // Extract JSON from response
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsedResult = JSON.parse(jsonMatch[0]);
+          return {
+            ...parsedResult,
+            source: 'gemini-ai',
+            apiSuccess: true
+          };
+        }
+        return null;
+      } catch (error) {
+        lastError = error;
+        
+        // Log detailed error info
+        const statusCode = error.response?.status;
+        const errorData = error.response?.data;
+        
+        console.error(`[ATS-GEMINI] Attempt ${attempt}/${retries} failed:`);
+        console.error(`  Status: ${statusCode}`);
+        console.error(`  Error: ${error.message}`);
+        if (errorData) {
+          console.error(`  Response: ${JSON.stringify(errorData, null, 2)}`);
+        }
+        
+        // Check if it's a rate limit error (429)
+        if (statusCode === 429 && attempt < retries) {
+          const waitTime = backoffMs * Math.pow(2, attempt - 1); // Exponential backoff
+          console.warn(`[ATS-GEMINI] ⏱️ Rate limited (429). Retry ${attempt}/${retries} after ${waitTime}ms...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          continue;
+        }
+        
+        // Check for other common API errors
+        if (statusCode === 403) {
+          console.error(`[ATS-GEMINI] ❌ 403 Forbidden - Check if API is enabled in Google Cloud Console`);
+          throw error;
+        }
+        
+        if (statusCode === 401) {
+          console.error(`[ATS-GEMINI] ❌ 401 Unauthorized - API Key may be invalid or disabled`);
+          throw error;
+        }
+        
+        if (statusCode === 400) {
+          console.error(`[ATS-GEMINI] ❌ 400 Bad Request - Check API request format`);
+          throw error;
+        }
+        
+        // Don't retry on other errors
+        throw error;
       }
-    );
-
-    const responseText = response.data.candidates[0].content.parts[0].text;
-    console.log('[ATS-GEMINI] ✅ Gemini response received');
-
-    // Extract JSON from response
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsedResult = JSON.parse(jsonMatch[0]);
-      return {
-        ...parsedResult,
-        source: 'gemini-ai',
-        apiSuccess: true
-      };
     }
-    return null;
+    
+    throw lastError || new Error('Max retries exceeded');
   } catch (error) {
     console.error('[ATS-GEMINI] ❌ Gemini API call failed:', error.message);
+    console.error('[ATS-GEMINI] Will use hybrid fallback calculation instead');
     return null;
   }
 }
